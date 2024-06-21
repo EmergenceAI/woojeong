@@ -101,10 +101,13 @@ if __name__ == "__main__":
     )
 
     # check whether query and query_y are the same, if not, raise error
-    assert (
-        inst_answer_df["query"] == inst_answer_df["query_y"]
-    ).all(), "query and query_y are not the same"
-    inst_answer_df.drop(columns=["query_y"], inplace=True)
+    unmatch = inst_answer_df[inst_answer_df["query"] != inst_answer_df["query_y"]]
+    logging.info(f"Number of unmatch query: {unmatch.shape[0]}")
+    # remove unmatched rows
+    inst_answer_df = inst_answer_df[inst_answer_df["query"] == inst_answer_df["query_y"]]
+    # drop query and rename query_y to query
+    inst_answer_df.drop(columns=["query"], inplace=True)
+    inst_answer_df.rename(columns={"query_y": "query"}, inplace=True)
 
     # check whether all data are valid
     assert (inst_answer_df["valid_data"] == True).all(), "Some data are invalid"
