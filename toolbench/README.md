@@ -24,6 +24,17 @@ python src/api/api_query_relation.py --push_to_hub
 * These are used to train API retriever in the ToolLLM paper
 * HF dataset - https://huggingface.co/datasets/MerlynMind/toolbench_query_api_mapping
 
+## load preprocessed datasets
+```python
+from dotenv import load_dotenv
+from src.utils import load_query_api_mapping, load_api_data, load_query_data
+
+load_dotenv(".env")
+query_api_mapping, id2doc, id2query = load_query_api_mapping()
+api_data = load_api_data()
+query_data = load_query_data("g1")
+```
+
 ## Todo
 - [x] preprocess query-api relations
 - [ ] split train/val apis
