@@ -6,7 +6,7 @@ import pickle
 import pandas as pd
 from dotenv import load_dotenv
 from tqdm import tqdm
-from datasets import Dataset
+from datasets import Dataset, DatasetDict
 
 logging.basicConfig(
     level=logging.INFO,
@@ -144,6 +144,14 @@ if __name__ == "__main__":
     logging.info(f"Total # of APIs: {len(id2doc)}")
     logging.info(f"Total # of query-doc mappings: {len(qd_mapping)}")
 
+    # id2query dict to df
+    id2query_df = pd.DataFrame(id2query.items(), columns=["qid", "query"])
+    id2doc = pd.DataFrame(id2doc.items(), columns=["docid", "doc"])
+
+    # join qd_mapping with id2query and id2doc
+    qd_mapping = qd_mapping.merge(id2query_df, on="qid", how="left")
+    qd_mapping = qd_mapping.merge(id2doc, on="docid", how="left")
+
     # save to local csv
     # make dir if not exists
     os.makedirs(args.out_local_csv_dir, exist_ok=True)
@@ -156,16 +164,26 @@ if __name__ == "__main__":
     )
     logging.info(f"Saved id2query, id2doc, qd_mapping to {args.out_local_csv_dir}")
 
-    # id2query dict to df
-    id2query_df = pd.DataFrame(id2query.items(), columns=["qid", "query"])
-    id2doc = pd.DataFrame(id2doc.items(), columns=["docid", "doc"])
-
-    # join qd_mapping with id2query and id2doc
-    qd_mapping = qd_mapping.merge(id2query_df, on="qid", how="left")
-    qd_mapping = qd_mapping.merge(id2doc, on="docid", how="left")
-
     # push to huggingface hub
     if args.push_to_hub:
-        dataset = Dataset.from_pandas(qd_mapping)
-        dataset.push_to_hub(args.hf_dataset_name, "g1", token=os.getenv("HF_TOKEN"))
+        # split train/test
+        train_qd_mapping = (
+            qd_mapping[qd_mapping["split"] == "train"]
+            .reset_index(drop=True)
+            .drop(columns=["split"])
+        )
+        test_qd_mapping = (
+            qd_mapping[qd_mapping["split"] == "test"]
+            .reset_index(drop=True)
+            .drop(columns=["split"])
+        )
+        dataset_dict = DatasetDict(
+            {
+                "train": Dataset.from_pandas(train_qd_mapping),
+                "test": Dataset.from_pandas(test_qd_mapping),
+            }
+        )
+        dataset_dict.push_to_hub(
+            args.hf_dataset_name, "g1", token=os.getenv("HF_TOKEN")
+        )
         logging.info(f"Pushed to Hugging Face dataset: {args.hf_dataset_name}/g1")
