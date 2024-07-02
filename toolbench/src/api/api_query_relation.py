@@ -14,28 +14,32 @@ logging.basicConfig(
 )
 
 
-def process_api_documents_toolbench(documents_df):
+def map_id_to_doc(documents_df, toolbench_string=False):
     """
     Process API documents as in toolbench paper
     """
     id2doc = {}
     for row in documents_df.itertuples():
-        doc = json.loads(row.document_content)
-        id2doc[row.docid] = (
-            (doc.get("category_name", "") or "")
-            + ", "
-            + (doc.get("tool_name", "") or "")
-            + ", "
-            + (doc.get("api_name", "") or "")
-            + ", "
-            + (doc.get("api_description", "") or "")
-            + ", required_params: "
-            + json.dumps(doc.get("required_parameters", ""))
-            + ", optional_params: "
-            + json.dumps(doc.get("optional_parameters", ""))
-            + ", return_schema: "
-            + json.dumps(doc.get("template_response", ""))
-        )
+        if toolbench_string:
+            doc = json.loads(row.document_content)
+            doc = (
+                (doc.get("category_name", "") or "")
+                + ", "
+                + (doc.get("tool_name", "") or "")
+                + ", "
+                + (doc.get("api_name", "") or "")
+                + ", "
+                + (doc.get("api_description", "") or "")
+                + ", required_params: "
+                + json.dumps(doc.get("required_parameters", ""))
+                + ", optional_params: "
+                + json.dumps(doc.get("optional_parameters", ""))
+                + ", return_schema: "
+                + json.dumps(doc.get("template_response", ""))
+            )
+        else:
+            doc = row.document_content
+        id2doc[row.docid] = doc
     return id2doc
 
 
@@ -81,7 +85,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--env_path", type=str, default=".env")
     parser.add_argument(
-        "--out_local_csv_dir", type=str, default="data/query_api_mapping/"
+        "--out_local_csv_path", type=str, default="data/query_api_mapping.csv"
     )
     parser.add_argument(
         "--hf_dataset_name", type=str, default="MerlynMind/toolbench_query_api_mapping"
@@ -104,7 +108,7 @@ if __name__ == "__main__":
     logging.info(f"Total # of API calls: {len(api_doc_df)}")
 
     # extract unique apis
-    id2doc = process_api_documents_toolbench(api_doc_df)
+    id2doc = map_id_to_doc(api_doc_df)
     logging.info(f"Number of unique APIs: {len(id2doc)}")
 
     # load query-doc mappings
@@ -154,15 +158,13 @@ if __name__ == "__main__":
 
     # save to local csv
     # make dir if not exists
-    os.makedirs(args.out_local_csv_dir, exist_ok=True)
-    with open(os.path.join(args.out_local_csv_dir, "id2query.pkl"), "wb") as f:
-        pickle.dump(id2query, f)
-    with open(os.path.join(args.out_local_csv_dir, "id2doc.pkl"), "wb") as f:
-        pickle.dump(id2doc, f)
-    qd_mapping.to_csv(
-        os.path.join(args.out_local_csv_dir, "qd_mapping.csv"), index=False
-    )
-    logging.info(f"Saved id2query, id2doc, qd_mapping to {args.out_local_csv_dir}")
+    # os.makedirs(args.out_local_csv_dir, exist_ok=True)
+    # with open(os.path.join(args.out_local_csv_dir, "id2query.pkl"), "wb") as f:
+    #     pickle.dump(id2query, f)
+    # with open(os.path.join(args.out_local_csv_dir, "id2doc.pkl"), "wb") as f:
+    #     pickle.dump(id2doc, f)
+    qd_mapping.to_csv(args.out_local_csv_path, index=False)
+    logging.info(f"Saved qd_mapping to {args.out_local_csv_path}")
 
     # push to huggingface hub
     if args.push_to_hub:

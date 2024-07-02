@@ -5,7 +5,7 @@ import numpy as np
 from datasets import load_dataset
 
 
-def load_query_api_mapping(local_file_path="data/qd_mapping.csv"):
+def load_query_api_mapping(local_file_path="data/query_api_mapping.csv"):
     """
     Load query-api mapping data from local file or hf dataset.
 
@@ -40,11 +40,9 @@ def load_query_api_mapping(local_file_path="data/qd_mapping.csv"):
         query_id = row["qid"]
         api_id = row["docid"]
         if query_id not in id2query:
-            id2query[query_id] = []
-        id2query[query_id].append(api_id)
+            id2query[query_id] = row["query"]
         if api_id not in id2doc:
-            id2doc[api_id] = []
-        id2doc[api_id].append(query_id)
+            id2doc[api_id] = row["doc"]
     return df, id2doc, id2query
 
 
@@ -72,12 +70,12 @@ def load_api_data(local_file_path="data/api_data.csv"):
     # some columns are mapped to "string" to avoid errors when converting to hf dataset
     # convert them back to their original types
     str_cols = [
-        "required_parameters",
-        "optional_parameters",
-        "body",
-        "headers",
-        "schema",
-        "test_endpoint",
+        "api_required_parameters",
+        "api_optional_parameters",
+        "api_body",
+        "api_headers",
+        "api_schema",
+        "api_test_endpoint",
     ]
 
     def eval(x):

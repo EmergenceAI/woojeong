@@ -16,7 +16,7 @@ logging.basicConfig(
 def json_to_df(apis):
     categories_df = []
     for category in apis:
-        print(f"category: {category}")
+        logging.info(f"category: {category}")
         tools = apis[category]
         if len(tools) == 0:
             print(category, "is empty")
@@ -32,7 +32,7 @@ def json_to_df(apis):
 
         # concat all tools in the category
         tools_df = pd.concat(tools_df)
-        tools_df["category"] = category
+        tools_df["category_name"] = category
         categories_df.append(tools_df)
     apis_df = pd.concat(categories_df).reset_index(drop=True)
     return apis_df
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     logging.info(f"# of tools: {apis_df.shape[0]}")
 
     # delete useless columns
-    del_cols = ["score.__typename", "score", "product_id", "name", "standardized_name"]
+    del_cols = ["score.__typename", "score", "product_id", "name",]
     for col in del_cols:
         if col in apis_df.columns:
             del apis_df[col]
@@ -81,40 +81,31 @@ if __name__ == "__main__":
         "tool_avg_latency",
         "tool_avg_success_rate",
         "tool_popularity_score",
-        "category",
+        "tool_name_standardized",
+        "category_name",
     ]
 
     # flatten api_list column
     apis_df = apis_df.explode("api_list").reset_index(drop=True)
     # from api_list column, make elements in dict as separate columns
+    api_info_only = apis_df["api_list"].apply(pd.Series)
+    # add "api_" prefix to all columns
+    api_info_only.columns = [f"api_{col}" for col in api_info_only.columns]
     apis_df = pd.concat(
-        [apis_df.drop(["api_list"], axis=1), apis_df["api_list"].apply(pd.Series)],
+        [apis_df.drop(["api_list"], axis=1), api_info_only],
         axis=1,
     )
-    # bring "category" column to the front
+    # bring "category_name" column to the front
     apis_df = apis_df[
-        ["category"] + [col for col in apis_df.columns if col != "category"]
+        ["category_name"] + [col for col in apis_df.columns if col != "category_name"]
     ]
 
     # handle missing values
-    fillna_cols = ["body", "headers", "schema", "convert_code", "test_endpoint"]
+    fillna_cols = ["tool_name_standardized", "api_body", "api_headers", "api_schema", "api_convert_code", "api_test_endpoint"]
     for col in fillna_cols:
         apis_df[col] = apis_df[col].replace("", None)
         apis_df[col] = apis_df[col].replace(np.nan, None)
         apis_df[col] = apis_df[col].replace("nan", None)
-
-    # these columns should be mapped to "string" to avoid errors when converting to hf dataset
-    str_cols = [
-        "required_parameters",
-        "optional_parameters",
-        "body",
-        "headers",
-        "schema",
-        "test_endpoint",
-    ]
-    for col in str_cols:
-        if col in apis_df.columns:
-            apis_df[col] = apis_df[col].astype(str)
 
     # save to local csv
     logging.info(f"Final dataframe shape: {apis_df.shape}")
@@ -124,8 +115,22 @@ if __name__ == "__main__":
 
     # convert to hf dataset
     if args.push_to_hub:
+        # these columns should be mapped to "string" to avoid errors when converting to hf dataset
+        str_cols = [
+            "api_required_parameters",
+            "api_optional_parameters",
+            "api_body",
+            "api_headers",
+            "api_schema",
+            "api_test_endpoint",
+        ]
+        for col in str_cols:
+            if col in apis_df.columns:
+                apis_df[col] = apis_df[col].astype(str)
+
         dataset = Dataset.from_pandas(apis_df)
         dataset.push_to_hub(args.hf_dataset_name, token=os.getenv("HF_TOKEN"))
         logging.info(f"Pushed to Hugging Face dataset: {args.hf_dataset_name}")
     else:
         logging.info("Skipping push to Hugging Face dataset")
+    print(dataset)
