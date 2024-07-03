@@ -7,9 +7,9 @@ import tiktoken
 import openai
 from dotenv import load_dotenv
 from tqdm import tqdm
-from toolbench.src.utils import load_query_api_mapping, load_api_data
-from toolbench.src.api.prompts import API_SUMMARY_PROMPT
-from toolbench.src.api.utils import get_gpt_response
+from toolbench_analysis.src.utils import load_query_api_mapping, load_api_data
+from toolbench_analysis.src.api.prompts import API_SUMMARY_PROMPT
+from toolbench_analysis.src.api.utils import get_gpt_response
 
 
 def _create_summary_prompt(

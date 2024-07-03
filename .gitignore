@@ -1,5 +1,5 @@
-toolbench/data/
-toolbench/retrieval_results/
+toolbench_analysis/data/
+toolbench_analysis/retrieval_results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

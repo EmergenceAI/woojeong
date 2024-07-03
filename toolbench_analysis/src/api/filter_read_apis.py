@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 import pandas as pd
 import logging
-from toolbench.src.api.utils import store_api_data
+from toolbench_analysis.src.api.utils import store_api_data
 
 logging.basicConfig(
     level=logging.INFO,
