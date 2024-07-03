@@ -5,6 +5,12 @@ import os
 import openai
 import numpy as np
 
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_random_exponential,
+)  # for exponential backoff
+
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s",
@@ -39,6 +45,7 @@ def read_api_data(input_path):
         return None
 
 
+@retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
 def get_gpt_response(messages, model="gpt-4-turbo-preview", temperature=0):
     logging.info("Getting gpt response ...")
     client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))

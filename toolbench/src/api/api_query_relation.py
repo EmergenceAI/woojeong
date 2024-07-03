@@ -14,35 +14,6 @@ logging.basicConfig(
 )
 
 
-def map_id_to_doc(documents_df, toolbench_string=False):
-    """
-    Process API documents as in toolbench paper
-    """
-    id2doc = {}
-    for row in documents_df.itertuples():
-        if toolbench_string:
-            doc = json.loads(row.document_content)
-            doc = (
-                (doc.get("category_name", "") or "")
-                + ", "
-                + (doc.get("tool_name", "") or "")
-                + ", "
-                + (doc.get("api_name", "") or "")
-                + ", "
-                + (doc.get("api_description", "") or "")
-                + ", required_params: "
-                + json.dumps(doc.get("required_parameters", ""))
-                + ", optional_params: "
-                + json.dumps(doc.get("optional_parameters", ""))
-                + ", return_schema: "
-                + json.dumps(doc.get("template_response", ""))
-            )
-        else:
-            doc = row.document_content
-        id2doc[row.docid] = doc
-    return id2doc
-
-
 def get_query_doc_mappings(data_dir, split="train"):
     """
     load query and query-doc mappings
@@ -108,7 +79,9 @@ if __name__ == "__main__":
     logging.info(f"Total # of API calls: {len(api_doc_df)}")
 
     # extract unique apis
-    id2doc = map_id_to_doc(api_doc_df)
+    id2doc = {}
+    for row in api_doc_df.itertuples():
+        id2doc[row.docid] = row.document_content
     logging.info(f"Number of unique APIs: {len(id2doc)}")
 
     # load query-doc mappings

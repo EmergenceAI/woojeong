@@ -35,6 +35,12 @@ api_data = load_api_data()
 query_data = load_query_data("g1")
 ```
 
+## Embed API docs
+```python
+python src/api/embed_apis.py --embed_subset --summary_mode raw
+```
+* summary_mode: `raw`, `toolbench`, `gpt4-ver1`
+
 ## Todo
 - [x] preprocess query-api relations
 - [ ] split train/val apis

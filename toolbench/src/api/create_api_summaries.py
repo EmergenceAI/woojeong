@@ -2,8 +2,8 @@ import json
 import os
 from dotenv import load_dotenv
 
-from src.api.utils import get_gpt_response, read_api_data, store_api_data
-from src.api.prompts import API_SUMMARY_PROMPT
+from toolbench.src.api.utils import get_gpt_response, read_api_data, store_api_data
+from toolbench.src.api.prompts import TOOL_SUMMARY_PROMPT
 
 def _create_summary_prompt(
     api_description
@@ -17,7 +17,7 @@ def _create_summary_prompt(
         str: API summary prompt
     """
     messages = []
-    messages.append({"role": "system", "content": API_SUMMARY_PROMPT})
+    messages.append({"role": "system", "content": TOOL_SUMMARY_PROMPT})
     messages.append({"role": "user", "content": api_description})
     return messages
 

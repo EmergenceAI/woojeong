@@ -72,10 +72,10 @@ def load_api_data(local_file_path="data/api_data.csv"):
     str_cols = [
         "api_required_parameters",
         "api_optional_parameters",
-        "api_body",
-        "api_headers",
-        "api_schema",
-        "api_test_endpoint",
+        # "api_body",
+        # "api_headers",
+        # "api_schema",
+        # "api_test_endpoint",
     ]
 
     def eval(x):
