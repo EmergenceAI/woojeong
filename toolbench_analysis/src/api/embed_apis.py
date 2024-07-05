@@ -159,23 +159,39 @@ def main(args):
             api_summaries[doc_id] = api_description
     elif args.summary_mode == "gpt4-ver1":
         api_summaries_path = f"data/api_summaries/{args.summary_mode}_{len(docid2api)}.pkl"
+
+        # create or load api summaries
         if os.path.exists(api_summaries_path):
             logging.info(f"Loading api summaries from {api_summaries_path}")
             with open(api_summaries_path, "rb") as f:
                 api_summaries = pickle.load(f)
         else:
+            logging.info(f"Generating api summaries using {args.summary_model}")
+            # save empty dictionary first
             api_summaries = {}
-            for doc_id, api_id in tqdm(docid2api.items()):
+            with open(api_summaries_path, "wb") as f:
+                pickle.dump(api_summaries, f)
+        
+        # check if any summaries are missing
+        if len(api_summaries) == len(docid2api):
+            logging.info("All api summaries are already generated")
+        else:
+            logging.info(f"{len(docid2api) - len(api_summaries)} api summaries are missing")
+            # generate missing summaries
+            for i, (doc_id, api_id) in enumerate(tqdm(docid2api.items())):
+                if doc_id in api_summaries:
+                    continue
                 api_info = api_data.iloc[api_id].to_dict()
                 api_description = create_raw_api_description(api_info)
                 messages = _create_summary_prompt(api_description)
                 response = get_gpt_response(messages, model=args.summary_model)
                 api_summaries[doc_id] = response
 
-            # save api summaries
-            with open(api_summaries_path, "wb") as f:
-                pickle.dump(api_summaries, f)
-            logging.info(f"Saved api summaries to {api_summaries_path}")
+                # save periodically
+                if i % 10 == 0:
+                    with open(api_summaries_path, "wb") as f:
+                        pickle.dump(api_summaries, f)
+                    logging.info(f"Saved api summaries to {api_summaries_path}")
     else:
         raise ValueError(f"Invalid summary mode: {args.summary_mode}")
     # breakpoint()
