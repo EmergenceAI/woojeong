@@ -8,36 +8,55 @@ from dataclasses import dataclass
 
 @dataclass
 class Dataset():
-    id2query = None
-    query2apis = None
-    api_data = None
-    api_data_with_query = None
+    id2query: dict = None
+    query2apis: dict = None
+    api_data: dict = None
+    api_data_with_query: dict = None
+    query2answers: dict = None
+    api_name2id: dict = None
 
     def get_api_data(self):
         return self.api_data
     
+    def get_api_ids(self):
+        return list(self.api_data.keys())
+    
     def get_api_data_with_query(self):
         return self.api_data_with_query
+    
+    def get_api_ids_with_query(self):
+        return list(self.api_data_with_query.keys())
     
     def get_query2apis(self):
         return self.query2apis
     
     def get_id2query(self):
         return self.id2query
+    
+    def get_query2answers(self):
+        return self.query2answers
 
     def get_query_by_id(self, qid=0):
         return self.id2query[qid]
     
     def get_api_by_id(self, api_id=0):
         api = self.api_data[api_id]
-        assert api["api_id"] == api_id
         return api
+    
+    def get_api_by_name(self, api_name=""):
+        api_id = self.api_name2id[api_name]
+        return self.get_api_by_id(api_id)
     
     def get_apis_by_query_id(self, qid=0):
         apis = self.query2apis[qid]
         api_list = [self.get_api_by_id(api_id) for api_id in apis]
         return api_list
 
+    def get_answers_by_query_id(self, qid=0):
+        return self.query2answers[qid]
+    
+    def __len__(self):
+        return len(self.id2query)
 
 class ToolbenchDataset(Dataset):
     def __init__(self, filter_query_api_mapping=False, load_query_data=False):
@@ -72,8 +91,9 @@ class ToolbenchDataset(Dataset):
         
         self.id2query = id2query
         self.query2apis = query2apis
-        self.api_data = api_data.to_dict(orient="records")
-        self.api_data_with_query = api_data[api_data["api_id"].isin(docid2api.values())]
+        self.api_data = api_data.to_dict(orient="records")  # TODO: change to dict
+        self.api_data_with_query = api_data[api_data["api_id"].isin(docid2api.values())].to_dict(orient="records")
+        self.query2answers = None  # TODO
 
         print("Dataset Stats:")
         print("Number of queries:", len(id2query))
@@ -82,6 +102,9 @@ class ToolbenchDataset(Dataset):
         print("Number of total query-api pairs:", len(query_api_mapping_df))
         print("Avg number of APIs per query:", np.mean([len(v) for v in query2apis.values()]))
 
+    def filter_ds(self, ds):
+        # TODO: implement this
+        return ds
 
 
 class APIGenDataset(Dataset):
@@ -90,50 +113,89 @@ class APIGenDataset(Dataset):
 
         # Login using e.g. `huggingface-cli login` to access this dataset
         ds = load_dataset("Salesforce/xlam-function-calling-60k")['train']
+        print("# of queries:", len(ds))
+        # NOTE: there is a bug in the dataset - filter valid rows
+        ds = self.filter_ds(ds)
+        print("# of queries after filtering:", len(ds))
         
+        # extract data
+        qids = ds["id"]
+        nested_apis = [json.loads(tool_list) for tool_list in ds['tools']]
+        nested_answers = [json.loads(answer_list) for answer_list in ds['answers']]
+
         # create mapping from query to apis
         id2query = {row["id"]: row["query"] for row in ds}
         
-        # pool of tools
-        nested_tools = [json.loads(tool_list) for tool_list in ds['tools']]
-        apis = list(chain(*nested_tools))
-        unique_apis = list({api["name"]: api for api in apis}.values())
-        # add api_id to each api dict
-        for i, api in enumerate(unique_apis):
-            api["api_id"] = i
-        api_data = unique_apis
+        # pool of apis
+        apis = list(chain(*nested_apis))
+        unique_apis = list({api["name"]: api for api in apis}.values())  # all names are unique
+        api_names = [api["name"] for api in unique_apis]
+        api_data: dict = {i: api for i, api in enumerate(unique_apis)}
+        api_name2id: dict = {api["name"]: id for id, api in api_data.items()}
 
-        # api names are unique
-        api_names = [api["name"] for api in api_data]
-        assert len(set(api_names)) == len(api_names)
-        api_name_to_id = {api["name"]: api["api_id"] for api in api_data}
+        # answers - actual api calls
+        nested_answers = [json.loads(answer_list) for answer_list in ds['answers']]
+        answers = list(chain(*nested_answers))
+        unique_answers = list({answer["name"]: answer for answer in answers}.values())
+        api_names_with_query = [answer["name"] for answer in unique_answers]
+        assert set(api_names_with_query).issubset(set(api_names)), "Some APIs in the answers are not in the API data."
+        # select from the api_data
+        api_data_with_query: dict = {api_name2id[api["name"]]: api for api in unique_answers}
 
-        # assign api_id to each api in the nested_tools
-        for tool_list in nested_tools:
-            for api in tool_list:
-                api["api_id"] = api_name_to_id[api["name"]]
-
-        # create query2apis mapping
-        qids = ds["id"]
-        query2apis = {qid: [api["api_id"] for api in tool_list] for qid, tool_list in zip(qids, nested_tools)}
+        # create mapping from query to apis
+        query2answers = {qid: answer_list for qid, answer_list in zip(ds["id"], nested_answers)}
+        
+        # create query to answer(api) mapping
+        query2api_names = {qid: [api["name"] for api in api_list] for qid, api_list in zip(qids, nested_answers)}
+        query2apis = {qid: [api_name2id[name] for name in name_list] for qid, name_list in query2api_names.items()}
         assert len(query2apis) == len(id2query)
-
-        # check if the mapping is correct
-        query2apis_list = list(query2apis.values())
-        # merge nested list
-        all_apis = list(chain(*query2apis_list))
-        assert len(set(all_apis)) == len(api_data)
 
         self.id2query = id2query
         self.query2apis = query2apis
         self.api_data = api_data
-        self.api_data_with_query = api_data
+        self.api_data_with_query = api_data_with_query
+        self.api_name2id = api_name2id
+        self.query2answers = query2answers
 
         print("Dataset Stats:")
         print("Number of queries:", len(id2query))
         print("Number of APIs in total:", len(self.api_data))
         print("Number of APIs with query:", len(self.api_data_with_query))
-        print("Number of total query-api pairs:", len(all_apis))
-        print("Avg number of APIs per query:", np.mean([len(v) for v in query2apis.values()]))
+        print("Number of total query-api pairs:", np.sum([len(v) for v in query2answers.values()]))
+        print("Avg number of APIs per query:", np.mean([len(v) for v in query2answers.values()]))
+
+    def filter_ds(self, ds):
+        """
+        Filter out rows with invalid function names (not in tools) or empty arguments.
+        """
+        invalid_ids = set()
+
+        def is_row_valid(example):
+            is_valid = True
+            
+            tool_name_to_optional_flag = {}
+            for tool in json.loads(example['tools']):
+                has_optional_param = any(
+                    'optional' in param['type'] or param.get('default', False) 
+                    for param in tool['parameters'].values()
+                )
+                tool_name_to_optional_flag[tool['name']] = has_optional_param
+            
+            answers = json.loads(example['answers'])
+            if len(answers) == 0:  # No API calls
+                is_valid = False
+            for ans in answers:
+                has_optional_param = tool_name_to_optional_flag.get(ans['name'])
+                if (
+                    (has_optional_param is None) # Invalid function name! Function doesn't exist.
+                    or (not has_optional_param and not ans['arguments']) # Function contains required args but args is empty!
+                ):
+                    is_valid = False
+                    invalid_ids.add(example['id'])
+                    break
+            return is_valid
+
+        return ds.filter(is_row_valid)
+
 
 
