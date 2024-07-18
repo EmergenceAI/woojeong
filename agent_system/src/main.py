@@ -5,11 +5,12 @@ from dotenv import load_dotenv
 from agent_system.src.tool_datasets import ToolbenchDataset, APIGenDataset
 from agent_system.src.autogen_wrapper import AutogenWrapper
 from agent_system.src.tool_executor import convert_apis_to_functions
+from agent_system.src.utils import convert_to_openai_tool_schema
 
 
 if __name__ == "__main__":
     load_dotenv(".env")
-    qid = 1  # 530
+    qid = 50  # 530
 
     # ds = ToolbenchDataset(filter_query_api_mapping=True)
     ds = APIGenDataset()
@@ -20,10 +21,11 @@ if __name__ == "__main__":
     print(f"Query: {query}")
     print(f"Number of APIs: {len(apis)}")
     print(f"Number of API calls: {len(answers)}")
+    # print(answers)
 
     # convert apis to function and register them
     # make sure the functions are available in the local scope
-    convert_apis_to_functions(apis, globals())
+    # convert_apis_to_functions(apis, use_simulator=True, globals=globals())
     # print("global functions: ", globals().keys())
     # breakpoint()
 

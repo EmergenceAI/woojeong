@@ -3,9 +3,11 @@ import os
 import logging
 import tempfile
 import json
+import inspect
 from prompts import LLM_PROMPTS
 from dotenv import load_dotenv
-from agent_system.src.utils import terminate
+from agent_system.src.utils import terminate, convert_to_openai_tool_schema, convert_api_to_function
+from agent_system.src.tool_simulator import APISimulator
         
 
 class AutogenWrapper:
@@ -304,7 +306,6 @@ class AutogenWrapper:
         """
         Register all the tools that the agent can perform.
         """
-
         if use_dummy:
             # register dummy tools for debugging
             def get_list_of_provinces_in_thailand():
@@ -340,18 +341,27 @@ class AutogenWrapper:
                 )
                 print(f">>> Registered tool: {tool.__name__}")
         else:
-            # example api data
             for api in apis:
+                # convert api to function and add it to the locals
+                func_name = api["name"]
+                func = convert_api_to_function(api)
+                locals()[func_name] = func
+                
                 autogen.register_function(
-                    api["func"],
+                    func,
                     caller=self.agents_map["tool_execution_manager"],  # The assistant agent can suggest calls to the calculator.
                     executor=self.agents_map["tool_executor"],  # The user proxy agent can execute the calculator calls.
-                    name=api["func_name"],  # By default, the function name is used as the tool name.
-                    description=api["api_description"],  # A description of the tool.
+                    name=func_name,  # By default, the function name is used as the tool name.
+                    description=api["description"],  # A description of the tool.
                 )
-                print(f">>> Registered tool: {api['func_name']}")
-        print(self.agents_map["tool_execution_manager"].llm_config["tools"])
-        breakpoint()
+                # update llm tool signature
+                self.agents_map["tool_execution_manager"].update_tool_signature(
+                    convert_to_openai_tool_schema(api),
+                    is_remove=False)
+                print(f">>> Registered tool: {func_name}")
+            print(">>> All tools available")
+            print(self.agents_map["tool_execution_manager"].llm_config["tools"])
+            # breakpoint()
     
     def initiate_chat(self, user_query: str = None):
         res = self.agents_map["user"].initiate_chats(
