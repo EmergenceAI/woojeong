@@ -7,13 +7,13 @@ import tiktoken
 import openai
 from dotenv import load_dotenv
 from tqdm import tqdm
-from toolbench_analysis.src.utils import load_query_api_mapping, load_api_data
-from toolbench_analysis.src.api.prompts import API_SUMMARY_PROMPT
+from toolbench_analysis.src.api.prompts import API_SUMMARY_PROMPT, API_INTENT_PROMPT
 from toolbench_analysis.src.api.utils import get_gpt_response
+from agent_system.src.tool_datasets import APIGenDataset, ToolbenchDataset
 
 
 def _create_summary_prompt(
-    api_description
+    api_description, prompt_type="intent"
 ):
     """Create prompt for LLM to generate API summaries for future retrieval.
 
@@ -23,13 +23,36 @@ def _create_summary_prompt(
     Returns:
         str: API summary prompt
     """
+    if prompt_type == "intent":
+        system_prompt = API_INTENT_PROMPT
+    elif prompt_type == "summary":
+        system_prompt = API_SUMMARY_PROMPT
+    else:
+        raise ValueError(f"Invalid prompt type: {prompt_type}")
     messages = []
-    messages.append({"role": "system", "content": API_SUMMARY_PROMPT})
+    messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": api_description})
     return messages
 
 
-def create_raw_api_description(api_info):
+def create_raw_api_description_apigen(api_info):
+    """Create raw API description from data for a given api.
+    This raw description will subsequently be sent to the LLM for summarization.
+
+    Args:
+        api_info (dict): Dictionary containing the API data
+    """
+    api_data_subset = {
+        k: api_info[k] for k in (
+            'name',
+            'description',
+            'parameters'
+        )
+    }
+    return json.dumps(api_data_subset)
+
+
+def create_raw_api_description_toolbench(api_info):
     """Create raw API description from data for a given api.
     This raw description will subsequently be sent to the LLM for summarization.
 
@@ -50,8 +73,9 @@ def create_raw_api_description(api_info):
     }
     return json.dumps(api_data_subset)
 
-def create_raw_api_description_toolbench(api_info):
-    """Create raw API description from data for a given api, according to the toolbench paper
+
+def toolbench_concat_info(api_info):
+    """Concatenate toolbench API information into a single string.
     
     Args:
         api_info (dict): Dictionary containing the API data
@@ -124,41 +148,49 @@ def embed_api_summaries(id2doc, embedding_model="text-embedding-3-small"):
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type=str, required=True, choices=["toolbench", "apigen"])
     parser.add_argument("--embed_subset", action="store_true")
     parser.add_argument("--summary_mode", type=str, required=True, choices=["raw", "toolbench", "gpt4-ver1"])
     parser.add_argument("--summary_model", type=str, default="gpt-4-turbo-preview")
     parser.add_argument("--embedding_model", type=str, default="text-embedding-3-small")
+    parser.add_argument("--summary_dir", type=str, default="data/api_summaries_toolbench/")
+    parser.add_argument("--embedding_dir", type=str, default="data/api_embeddings_toolbench/")
     return parser.parse_args()
 
 
 def main(args):
-    # load api info
-    api_data = load_api_data()
-    # load docid to api mapping
-    docid2api = pickle.load(open("data/docid2api.pkl", "rb"))
+    if args.dataset == "toolbench":
+        logging.info("Using Toolbench dataset")
+        ds = ToolbenchDataset()
+        summary_mode = "summary"
+        create_description_func = create_raw_api_description_toolbench
+    elif args.dataset == "apigen":
+        logging.info("Using APIGen dataset")
+        ds = APIGenDataset()
+        summary_mode = "intent"
+        create_description_func = create_raw_api_description_apigen
+    api_data: dict = ds.get_api_data()
 
-    # filter out the target doc ids
-    if args.embed_subset:
-        split_info_list = pickle.load(open("data/split_info_list.pkl", "rb"))
-        target_doc_ids = split_info_list[0]['docs'].tolist()
-        docid2api = {k: v for k, v in docid2api.items() if k in target_doc_ids}
-        logging.info(f"Embedding subset of {len(target_doc_ids)} docs")
+    # # filter out the target doc ids
+    # if args.embed_subset:
+    #     split_info_list = pickle.load(open("data/split_info_list.pkl", "rb"))
+    #     target_doc_ids = split_info_list[0]['docs'].tolist()
+    #     docid2api = {k: v for k, v in docid2api.items() if k in target_doc_ids}
+    #     logging.info(f"Embedding subset of {len(target_doc_ids)} docs")
     
-    # create api summaries
+    # === summaries
+    os.makedirs(args.summary_dir, exist_ok=True)
     if args.summary_mode == "raw":
         api_summaries = {}
-        for doc_id, api_id in tqdm(docid2api.items()):
-            api_info = api_data.iloc[api_id].to_dict()
-            api_description = create_raw_api_description(api_info)
-            api_summaries[doc_id] = api_description
+        for id, api_info in api_data.items():
+            api_summaries[id] = create_description_func(api_info)
     elif args.summary_mode == "toolbench":
+        assert args.dataset == "toolbench", "Toolbench dataset must be used for toolbench summary mode"
         api_summaries = {}
-        for doc_id, api_id in tqdm(docid2api.items()):
-            api_info = api_data.iloc[api_id].to_dict()
-            api_description = create_raw_api_description_toolbench(api_info)
-            api_summaries[doc_id] = api_description
+        for id, api_info in api_data.items():
+            api_summaries[id] = toolbench_concat_info(api_info)
     elif args.summary_mode == "gpt4-ver1":
-        api_summaries_path = f"data/api_summaries/{args.summary_mode}_{len(docid2api)}.pkl"
+        api_summaries_path = os.path.join(args.summary_dir, f"{args.summary_mode}_{len(api_data)}.pkl")
 
         # create or load api summaries
         if os.path.exists(api_summaries_path):
@@ -173,19 +205,18 @@ def main(args):
                 pickle.dump(api_summaries, f)
         
         # check if any summaries are missing
-        if len(api_summaries) == len(docid2api):
+        if len(api_summaries) == len(api_data):
             logging.info("All api summaries are already generated")
         else:
-            logging.info(f"{len(docid2api) - len(api_summaries)} api summaries are missing")
+            logging.info(f"{len(api_data) - len(api_summaries)} api summaries are missing")
             # generate missing summaries
-            for i, (doc_id, api_id) in enumerate(tqdm(docid2api.items())):
-                if doc_id in api_summaries:
+            for i, (api_id, api_info) in enumerate(tqdm(api_data.items())):
+                if api_id in api_summaries:
                     continue
-                api_info = api_data.iloc[api_id].to_dict()
-                api_description = create_raw_api_description(api_info)
-                messages = _create_summary_prompt(api_description)
+                api_description = create_description_func(api_info)
+                messages = _create_summary_prompt(api_description, prompt_type=summary_mode)
                 response = get_gpt_response(messages, model=args.summary_model)
-                api_summaries[doc_id] = response
+                api_summaries[api_id] = response
 
                 # save periodically
                 if i % 10 == 0:
@@ -196,16 +227,28 @@ def main(args):
         raise ValueError(f"Invalid summary mode: {args.summary_mode}")
     # breakpoint()
 
-    # embed api summaries
-    id2doc_embed = embed_api_summaries(api_summaries, embedding_model=args.embedding_model)
+    # === embeddings
+    os.makedirs(args.embedding_dir, exist_ok=True)
+    
+    # embed apis
+    save_path = os.path.join(args.embedding_dir, f"id2api_embed_{args.summary_mode}_{len(api_data)}.pkl")
+    if os.path.exists(save_path):
+        logging.info(f"API embeddings already exist at {save_path}")
+    else:
+        id2api_embed = embed_api_summaries(api_summaries, embedding_model=args.embedding_model)
+        with open(save_path, "wb") as f:
+            pickle.dump(id2api_embed, f)
+        logging.info(f"Saved API embeddings to {save_path}")
 
-    # save embeddings
-    oai_embedding_dir = "data/api_embeddings/"
-    os.makedirs(oai_embedding_dir, exist_ok=True)
-    save_path = os.path.join(oai_embedding_dir, f"id2doc_embed_{args.summary_mode}_{len(docid2api)}.pkl")
-    with open(save_path, "wb") as f:
-        pickle.dump(id2doc_embed, f)
-    logging.info(f"Saved api summary embeddings to {save_path}")
+    # embed queries
+    save_path = os.path.join(args.embedding_dir, f"id2query_embed.pkl")
+    if os.path.exists(save_path):
+        logging.info(f"Query embeddings already exist at {save_path}")
+    else:
+        id2query_embed = embed_api_summaries(ds.get_id2query(), embedding_model=args.embedding_model)
+        with open(save_path, "wb") as f:
+            pickle.dump(id2query_embed, f)
+        logging.info(f"Saved Query embeddings to {save_path}")
 
 
 if __name__ == "__main__":
