@@ -59,21 +59,19 @@ class Dataset():
         return len(self.id2query)
 
 class ToolbenchDataset(Dataset):
-    def __init__(self, filter_query_api_mapping=False, load_query_data=False):
-        # === load query_api mapping data
-        toolbench_data_folder = "/Users/woojeong/Desktop/woojeong/toolbench_analysis/data/"
-        if filter_query_api_mapping:
-            query_api_mapping_df, id2doc, id2query = load_query_api_mapping(local_file_path=os.path.join(toolbench_data_folder, "filtered_query_api_mapping.csv"))
-        else:
-            query_api_mapping_df, id2doc, id2query = load_query_api_mapping()
-        # TODO: add code to generate docid2api
-        with open(os.path.join(toolbench_data_folder, "docid2api.pkl"), "rb") as f:
-            docid2api = pickle.load(f)
-
-        # === load api data
+    def __init__(self, load_query_data=False):
+        # === load data
+        # toolbench_data_folder = "/Users/woojeong/Desktop/woojeong/toolbench_analysis/data/"
+        query_api_mapping_df, id2doc, id2query = load_query_api_mapping()
         api_data = load_api_data()
-        api_data.reset_index(inplace=True)
-        api_data = api_data.rename(columns={"index": "api_id"})
+
+        # === filter query-api mapping that are in the api_data
+        docid2api = self.generate_filtered_doc2api_mapping(id2doc, api_data)
+        query_api_mapping_df = query_api_mapping_df[query_api_mapping_df["docid"].isin(docid2api.keys())]
+
+        # === convert api index to id
+        # api_data should be dictionary with key as index
+        api_data = {i: api for i, api in enumerate(api_data.to_dict(orient="records"))}
 
         # === preprocess
         # reset qid to start from 0
@@ -88,11 +86,16 @@ class ToolbenchDataset(Dataset):
         # === load query data if needed
         if load_query_data:
             self.query_data = load_query_data("g1")
+
+        # === filter apis with query
+        # flatten the list of apis
+        unique_apis = list(set(chain(*query2apis.values())))
+        api_data_with_query = {api_id: api_data[api_id] for api_id in unique_apis}
         
         self.id2query = id2query
         self.query2apis = query2apis
-        self.api_data = api_data.to_dict(orient="records")  # TODO: change to dict
-        self.api_data_with_query = api_data[api_data["api_id"].isin(docid2api.values())].to_dict(orient="records")
+        self.api_data = api_data
+        self.api_data_with_query = api_data_with_query
         self.query2answers = None  # TODO
 
         print("Dataset Stats:")
@@ -102,9 +105,47 @@ class ToolbenchDataset(Dataset):
         print("Number of total query-api pairs:", len(query_api_mapping_df))
         print("Avg number of APIs per query:", np.mean([len(v) for v in query2apis.values()]))
 
-    def filter_ds(self, ds):
-        # TODO: implement this
-        return ds
+    def generate_filtered_doc2api_mapping(self, id2doc, api_data):
+        # apis that are not found in the api_data
+        not_found_docids = []
+
+        # map doc_id -> api_id (index in api_data)
+        correct_mapping  = {}
+        manual_mapping = {
+            1105: 36678,
+            3076: 6,
+            5867: 36383,
+            5870: 36400,
+            7330: 11041,
+            7331: 11042,
+        }
+        for id, doc in id2doc.items():
+            api_info = json.loads(doc)
+            category, tool_name, api_name = api_info["category_name"], api_info["tool_name"], api_info["api_name"]
+            
+            # first check with the names
+            data = api_data[(api_data["category_name"] == category) & (api_data["tool_name"] == tool_name) & (api_data["api_name"] == api_name)]
+            if len(data) != 0:
+                correct_mapping[id] = data.index[0]
+                continue
+
+            # if not found, check with the description
+            data = api_data[(api_data["api_description"] == api_info["api_description"])]
+            if len(data) == 1:
+                # if only one match, add to correct_mapping
+                correct_mapping[id] = data.index[0]
+                continue
+            elif len(data) > 1:
+                # if multiple matches, check if id is in manual_mapping
+                if id in manual_mapping:
+                    correct_mapping[id] = manual_mapping[id]
+                else:
+                    not_found_docids.append(id)
+                continue
+        
+            # neither, add to not_found_apis
+            not_found_docids.append(id)
+        return correct_mapping
 
 
 class APIGenDataset(Dataset):
