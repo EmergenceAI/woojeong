@@ -59,7 +59,7 @@ class Dataset():
         return len(self.id2query)
 
 class ToolbenchDataset(Dataset):
-    def __init__(self, load_query_data=False):
+    def __init__(self, split="concat", load_query_data=False):
         # === load data
         # toolbench_data_folder = "/Users/woojeong/Desktop/woojeong/toolbench_analysis/data/"
         query_api_mapping_df, id2doc, id2query = load_query_api_mapping()
@@ -82,6 +82,19 @@ class ToolbenchDataset(Dataset):
         query_api_mapping_df["api"] = query_api_mapping_df["docid"].apply(lambda x: docid2api[x])
         # make these to dict of qid: apis
         query2apis = query_api_mapping_df[["qid", "api"]].groupby("qid")["api"].apply(list).to_dict()
+
+        # === filter by split
+        if split == "train":
+            query_api_mapping_df = query_api_mapping_df[query_api_mapping_df["split"] == "train"]
+        elif split == "test":
+            query_api_mapping_df = query_api_mapping_df[query_api_mapping_df["split"] == "test"]
+        elif split == "concat":
+            pass
+        else:
+            raise ValueError("Invalid split value. Choose from 'train', 'test', 'concat'")
+        filtered_queries = query_api_mapping_df["qid"].values
+        id2query = {qid: query for qid, query in id2query.items() if qid in filtered_queries}
+        query2apis = {qid: apis for qid, apis in query2apis.items() if qid in filtered_queries}
 
         # === load query data if needed
         if load_query_data:
