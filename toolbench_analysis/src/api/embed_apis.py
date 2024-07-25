@@ -81,13 +81,13 @@ def toolbench_concat_info(api_info):
         api_info (dict): Dictionary containing the API data
     """
     doc = (
-        (api_info.get("category_name", "") or "")
+        str(api_info.get("category_name", "") or "")
         + ", "
-        + (api_info.get("tool_name", "") or "")
+        + str(api_info.get("tool_name", "") or "")
         + ", "
-        + (api_info.get("api_name", "") or "")
+        + str(api_info.get("api_name", "") or "")
         + ", "
-        + (api_info.get("api_description", "") or "")
+        + str(api_info.get("api_description", "") or "")
         + ", required_params: "
         + json.dumps(api_info.get("required_parameters", ""))
         + ", optional_params: "
@@ -118,7 +118,7 @@ def truncate_texts(texts: list, max_tokens: int=8192, encoding: str="cl100k_base
     return truncated_texts
 
 
-def embed_api_summaries(id2doc, embedding_model="text-embedding-3-small"):
+def embed_api_summaries(id2doc, embedding_mode, embedding_model="text-embedding-3-small"):
     """
     Embed API summaries using OpenAI model.
     
@@ -126,23 +126,40 @@ def embed_api_summaries(id2doc, embedding_model="text-embedding-3-small"):
         id2doc (dict): Dictionary containing API summaries
         embedding_model (str): OpenAI model to use for embedding
     """
-    # truncate texts before embedding    
-    id2doc = dict(zip(id2doc.keys(), truncate_texts(id2doc.values())))
+    if embedding_mode == "openai":
+        # truncate texts before embedding    
+        id2doc = dict(zip(id2doc.keys(), truncate_texts(id2doc.values())))
 
-    # embed with openai model
-    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    def batch_embed(id2text, batch_size=128, model=embedding_model):
-        embeddings = []
-        for i in tqdm(range(0, len(id2text), batch_size)):
-            batch_texts = [id2text[id] for id in list(id2text)[i:i+batch_size]]
-            batch_embeddings = client.embeddings.create(input = batch_texts, model=model).data
-            embeddings.extend(batch_embeddings)
-        # convert to dict
-        id2embedding = {id: embedding.embedding for id, embedding in zip(id2text.keys(), embeddings)}
-        return id2embedding
+        # embed with openai model
+        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        def batch_embed(id2text, batch_size=128, model=embedding_model):
+            embeddings = []
+            for i in tqdm(range(0, len(id2text), batch_size)):
+                batch_texts = [id2text[id] for id in list(id2text)[i:i+batch_size]]
+                batch_embeddings = client.embeddings.create(input = batch_texts, model=model).data
+                embeddings.extend(batch_embeddings)
+            # convert to dict
+            id2embedding = {id: embedding.embedding for id, embedding in zip(id2text.keys(), embeddings)}
+            return id2embedding
 
-    # WARNING: This will call the OpenAI API and consume credits
-    id2doc_embed = batch_embed(id2doc)
+        # WARNING: This will call the OpenAI API and consume credits
+        id2doc_embed = batch_embed(id2doc)
+    elif embedding_mode == "toolbench-retriever":
+        from sentence_transformers import SentenceTransformer
+
+        model = SentenceTransformer("ToolBench/ToolBench_IR_bert_based_uncased")
+        def batch_embed(id2text, batch_size=128):
+            embeddings = []
+            for i in tqdm(range(0, len(id2text), batch_size)):
+                batch_texts = [id2text[id] for id in list(id2text)[i:i+batch_size]]
+                batch_embeddings = model.encode(batch_texts)
+                embeddings.extend(batch_embeddings)
+            # convert to dict
+            id2embedding = {id: embedding for id, embedding in zip(id2text.keys(), embeddings)}
+            return id2embedding
+        id2doc_embed = batch_embed(id2doc)
+    else:
+        raise ValueError(f"Invalid embedding mode: {embedding_mode}")
     return id2doc_embed
 
 
@@ -152,6 +169,7 @@ def parse_args():
     parser.add_argument("--embed_subset", action="store_true")
     parser.add_argument("--summary_mode", type=str, required=True, choices=["raw", "toolbench", "gpt4-ver1"])
     parser.add_argument("--summary_model", type=str, default="gpt-4-turbo-preview")
+    parser.add_argument("--embedding_mode", type=str, default="openai", choices=["openai", "toolbench-retriever"])
     parser.add_argument("--embedding_model", type=str, default="text-embedding-3-small")
     parser.add_argument("--summary_dir", type=str, default="data/api_summaries_toolbench/")
     parser.add_argument("--embedding_dir", type=str, default="data/api_embeddings_toolbench/")
@@ -231,21 +249,29 @@ def main(args):
     os.makedirs(args.embedding_dir, exist_ok=True)
     
     # embed apis
-    save_path = os.path.join(args.embedding_dir, f"id2api_embed_{args.summary_mode}_{len(api_data)}.pkl")
+    save_path = os.path.join(args.embedding_dir, f"id2api_embed_{args.summary_mode}_{args.embedding_mode}_{len(api_data)}.pkl")
     if os.path.exists(save_path):
         logging.info(f"API embeddings already exist at {save_path}")
     else:
-        id2api_embed = embed_api_summaries(api_summaries, embedding_model=args.embedding_model)
+        id2api_embed = embed_api_summaries(
+            api_summaries,
+            embedding_mode=args.embedding_mode,
+            embedding_model=args.embedding_model
+        )
         with open(save_path, "wb") as f:
             pickle.dump(id2api_embed, f)
         logging.info(f"Saved API embeddings to {save_path}")
 
     # embed queries
-    save_path = os.path.join(args.embedding_dir, f"id2query_embed.pkl")
+    save_path = os.path.join(args.embedding_dir, f"id2query_{args.embedding_mode}_embed.pkl")
     if os.path.exists(save_path):
         logging.info(f"Query embeddings already exist at {save_path}")
     else:
-        id2query_embed = embed_api_summaries(ds.get_id2query(), embedding_model=args.embedding_model)
+        id2query_embed = embed_api_summaries(
+            ds.get_id2query(),
+            embedding_mode=args.embedding_mode,
+            embedding_model=args.embedding_model
+        )
         with open(save_path, "wb") as f:
             pickle.dump(id2query_embed, f)
         logging.info(f"Saved Query embeddings to {save_path}")
