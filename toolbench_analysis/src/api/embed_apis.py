@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from toolbench_analysis.src.api.prompts import API_SUMMARY_PROMPT, API_INTENT_PROMPT
 from toolbench_analysis.src.api.utils import get_gpt_response
-from agent_system.src.tool_datasets import APIGenDataset, ToolbenchDataset
+from agent_system.src.tool_datasets import APIGenDataset, ToolbenchDataset, MetaToolDataset
 
 
 def _create_summary_prompt(
@@ -50,6 +50,15 @@ def create_raw_api_description_apigen(api_info):
         )
     }
     return json.dumps(api_data_subset)
+
+def create_raw_api_description_metatool(api_info):
+    """Create raw API description from data for a given api.
+    This raw description will subsequently be sent to the LLM for summarization.
+
+    Args:
+        api_info (dict): Dictionary containing the API data
+    """
+    return json.dumps(api_info)
 
 
 def create_raw_api_description_toolbench(api_info):
@@ -118,17 +127,18 @@ def truncate_texts(texts: list, max_tokens: int=8192, encoding: str="cl100k_base
     return truncated_texts
 
 
-def embed_api_summaries(id2doc, embedding_mode, embedding_model="text-embedding-3-small"):
+def embed_texts(id2text, embedding_mode, embedding_model="text-embedding-3-small"):
     """
-    Embed API summaries using OpenAI model.
+    Embed texts using the specified embedding model.
     
     Args:
-        id2doc (dict): Dictionary containing API summaries
+        id2doc (dict): Dictionary containing the text data
+        embedding_mode (str): Embedding mode to use, either "openai" or "toolbench-retriever"
         embedding_model (str): OpenAI model to use for embedding
     """
     if embedding_mode == "openai":
         # truncate texts before embedding    
-        id2doc = dict(zip(id2doc.keys(), truncate_texts(id2doc.values())))
+        id2text = dict(zip(id2text.keys(), truncate_texts(id2text.values())))
 
         # embed with openai model
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -143,7 +153,7 @@ def embed_api_summaries(id2doc, embedding_mode, embedding_model="text-embedding-
             return id2embedding
 
         # WARNING: This will call the OpenAI API and consume credits
-        id2doc_embed = batch_embed(id2doc)
+        id2text_embed = batch_embed(id2text)
     elif embedding_mode == "toolbench-retriever":
         from sentence_transformers import SentenceTransformer
 
@@ -157,15 +167,15 @@ def embed_api_summaries(id2doc, embedding_mode, embedding_model="text-embedding-
             # convert to dict
             id2embedding = {id: embedding for id, embedding in zip(id2text.keys(), embeddings)}
             return id2embedding
-        id2doc_embed = batch_embed(id2doc)
+        id2text_embed = batch_embed(id2text)
     else:
         raise ValueError(f"Invalid embedding mode: {embedding_mode}")
-    return id2doc_embed
+    return id2text_embed
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, required=True, choices=["toolbench", "apigen"])
+    parser.add_argument("--dataset", type=str, required=True, choices=["toolbench", "apigen", "metatool"])
     parser.add_argument("--embed_subset", action="store_true")
     parser.add_argument("--summary_mode", type=str, required=True, choices=["raw", "toolbench", "gpt4-ver1"])
     parser.add_argument("--summary_model", type=str, default="gpt-4-turbo-preview")
@@ -187,6 +197,11 @@ def main(args):
         ds = APIGenDataset()
         summary_mode = "intent"
         create_description_func = create_raw_api_description_apigen
+    elif args.dataset == "metatool":
+        logging.info("Using MetaTool dataset")
+        ds = MetaToolDataset()
+        summary_mode = "intent"
+        create_description_func = create_raw_api_description_metatool
     api_data: dict = ds.get_api_data()
 
     # # filter out the target doc ids
@@ -253,7 +268,7 @@ def main(args):
     if os.path.exists(save_path):
         logging.info(f"API embeddings already exist at {save_path}")
     else:
-        id2api_embed = embed_api_summaries(
+        id2api_embed = embed_texts(
             api_summaries,
             embedding_mode=args.embedding_mode,
             embedding_model=args.embedding_model
@@ -263,11 +278,11 @@ def main(args):
         logging.info(f"Saved API embeddings to {save_path}")
 
     # embed queries
-    save_path = os.path.join(args.embedding_dir, f"id2query_{args.embedding_mode}_embed.pkl")
+    save_path = os.path.join(args.embedding_dir, f"id2query_embed_{args.embedding_mode}.pkl")
     if os.path.exists(save_path):
         logging.info(f"Query embeddings already exist at {save_path}")
     else:
-        id2query_embed = embed_api_summaries(
+        id2query_embed = embed_texts(
             ds.get_id2query(),
             embedding_mode=args.embedding_mode,
             embedding_model=args.embedding_model

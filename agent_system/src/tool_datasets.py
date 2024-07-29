@@ -1,6 +1,8 @@
 import os
 import pickle
 import numpy as np
+import pandas as pd
+from io import StringIO
 from itertools import chain
 import json
 from toolbench_analysis.src.utils import load_query_api_mapping, load_api_data, load_query_data 
@@ -252,4 +254,90 @@ class APIGenDataset(Dataset):
         return ds.filter(is_row_valid)
 
 
+class MetaToolDataset(Dataset):
+    def __init__(self, split="concat"):
+        # === load dataset
+        metatool_folder = "/Users/woojeong/Desktop/MetaTool/dataset"
+        # single
+        single_tool_data = pd.read_csv(os.path.join(metatool_folder, "data/all_clean_data.csv"))
+        single_tool_data.rename(columns={"Query": "query", "Tool": "tool"}, inplace=True)
+        single_tool_data["split"] = "single"
+        # multi
+        with open(os.path.join(metatool_folder, "data/multi_tool_query_golden.json"), "rb") as f:
+            multi_tool_data = json.load(f)
+        multi_tool_data = pd.read_json(StringIO(json.dumps(multi_tool_data)))
+        multi_tool_data = multi_tool_data.explode("tool")
+        multi_tool_data["split"] = "multi"
+        # merge
+        tool_data = pd.concat([single_tool_data, multi_tool_data])
 
+        # === filter by split
+        if split == "single":
+            print("loading queries with single tools")
+            tool_data = tool_data[tool_data["split"] == "single"]
+        elif split == "multi":
+            print("loading queries with multi tools")
+            tool_data = tool_data[tool_data["split"] == "multi"]
+        elif split == "concat":
+            print("loading all queries")
+            tool_data = tool_data
+        else:
+            raise ValueError("Invalid split value. Choose from 'single', 'multi', 'concat'")
+        # group by query
+        tool_data = tool_data.groupby("query")["tool"].apply(list).reset_index()
+        tool_data["qid"] = tool_data.index
+        
+        # merge tools
+        single_tools = set(single_tool_data['tool'].unique())
+        multi_tools = set(multi_tool_data['tool'].unique())
+        all_tools = single_tools.union(multi_tools)
+
+        # load tool info
+        with open(os.path.join(metatool_folder, "plugin_info.json"), "rb") as f:
+            tool_info = json.load(f)
+        tool_info = pd.read_json(StringIO(json.dumps(tool_info)))
+        tool_info.drop("description_for_model", axis=1, inplace=True)
+        tool_info.rename(columns={
+            "name_for_model": "standard_tool_name",
+            "name_for_human": "tool_name",
+            "description_for_human": "tool_description",
+        }, inplace=True)
+        
+        # merged tool info (higher level)
+        with open(os.path.join(metatool_folder, "big_tool_des.json"), "rb") as f:
+            merged_tool_info = json.load(f)
+        df_info = []
+        for tool_name, tool_description in merged_tool_info.items():
+            df_info.append({
+                "standard_tool_name": tool_name,
+                "tool_description": tool_description
+            })
+        merged_tool_info = pd.DataFrame(df_info)
+
+        # concat
+        tool_info = pd.concat([tool_info, merged_tool_info], ignore_index=True)
+
+        # sanity check
+        assert all_tools.issubset(set(tool_info["standard_tool_name"].unique()))
+
+        # === create mappings
+        id2query = {row["qid"]: row["query"] for row in tool_data.to_dict(orient="records")}
+        api_data = {i: api for i, api in enumerate(tool_info.to_dict(orient="records"))}
+        api_name2id = {api["standard_tool_name"]: id for id, api in api_data.items()}
+        query2apis = {qid: [api_name2id[api] for api in apis] for qid, apis in tool_data[["qid", "tool"]].values}
+        assert len(query2apis) == len(id2query)
+        api_data_with_query = {api_id: api_data[api_id] for api_id in set(chain(*query2apis.values()))}
+
+        self.id2query = id2query
+        self.query2apis = query2apis
+        self.api_data = api_data
+        self.api_data_with_query = api_data_with_query
+        self.api_name2id = api_name2id
+        self.query2answers = None
+
+        print("Dataset Stats:")
+        print("Number of queries:", len(id2query))
+        print("Number of APIs in total:", len(self.api_data))
+        print("Number of APIs with query:", len(self.api_data_with_query))
+        print("Number of total query-api pairs:", np.sum([len(v) for v in query2apis.values()]))
+        print("Avg number of APIs per query:", np.mean([len(v) for v in query2apis.values()]))
