@@ -278,6 +278,7 @@ class APIGenDataset(Dataset):
 class MetaToolDataset(Dataset):
     def __init__(self, split="concat"):
         # === load dataset
+        # clone https://github.com/HowieHwong/MetaTool/tree/master first
         metatool_folder = "/Users/woojeong/Desktop/MetaTool/dataset"
         # single
         single_tool_data = pd.read_csv(os.path.join(metatool_folder, "data/all_clean_data.csv"))
@@ -363,9 +364,11 @@ class MetaToolDataset(Dataset):
         print("Number of total query-api pairs:", np.sum([len(v) for v in query2apis.values()]))
         print("Avg number of APIs per query:", np.mean([len(v) for v in query2apis.values()]))
 
+
 class AnyToolbenchDataset(Dataset):
     def __init__(self):
         # === load data
+        # clone https://github.com/dyabel/AnyTool/tree/public first
         path = "/Users/woojeong/Desktop/AnyTool/atb_data/anytoolbench.json"
         with open(path, "rb") as f:
             data = json.load(f)
@@ -378,12 +381,12 @@ class AnyToolbenchDataset(Dataset):
         data[92]['gt_api_list'][1]['tool_name'] = 'Text Sentiment Analysis '
         
         # query mapping
-        id2query = {row["query_id"]: row["query"] for row in data}
+        id2query = {int(row["query_id"]): row["query"] for row in data}
         
         # query to api mapping
         query2apis = {}
         for i, row in enumerate(data):
-            query_id = row['query_id']
+            query_id = int(row['query_id'])
             api_list = row['gt_api_list']
             api_indices = []
             for api in api_list:
