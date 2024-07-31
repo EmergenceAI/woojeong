@@ -46,7 +46,7 @@ def load_query_api_mapping(local_file_path="data/query_api_mapping.csv"):
     return df, id2doc, id2query
 
 
-def load_api_data(local_file_path="data/api_data.csv"):
+def load_api_data(local_file_path="data/api_data.csv", drop_duplicates=True):
     """
     Load api data from local file or hf dataset.
 
@@ -88,6 +88,9 @@ def load_api_data(local_file_path="data/api_data.csv"):
         if col in df.columns:
             print(f"processing '{col}' column")
             df[col] = df[col].apply(eval)
+    
+    if drop_duplicates:
+        df.drop_duplicates(subset=["category_name", "tool_name", "api_name"], inplace=True, ignore_index=True)
     return df
 
 
