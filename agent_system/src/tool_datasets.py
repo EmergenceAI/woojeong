@@ -20,6 +20,9 @@ class Dataset():
     def get_api_data(self):
         return self.api_data
     
+    def get_api_data_df(self):
+        return pd.DataFrame(self.api_data).T
+    
     def get_api_ids(self):
         return list(self.api_data.keys())
     
@@ -49,6 +52,14 @@ class Dataset():
         api_id = self.api_name2id[api_name]
         return self.get_api_by_id(api_id)
     
+    def get_apis_id_by_feature(self, feature_name="", feature_value="", with_query=False):
+        if with_query:
+            api_pool = self.get_api_data_with_query()
+        else:
+            api_pool = self.get_api_data()
+        api_ids = [api_id for api_id, api in api_pool.items() if api[feature_name] == feature_value]
+        return api_ids
+    
     def get_apis_by_query_id(self, qid=0):
         apis = self.query2apis[qid]
         api_list = [self.get_api_by_id(api_id) for api_id in apis]
@@ -56,6 +67,12 @@ class Dataset():
 
     def get_answers_by_query_id(self, qid=0):
         return self.query2answers[qid]
+    
+    def get_total_apis(self):
+        return list(self.get_api_data().keys())
+    
+    def get_total_queries(self):
+        return list(self.get_id2query().keys())
     
     def __len__(self):
         return len(self.id2query)
@@ -74,6 +91,10 @@ class ToolbenchDataset(Dataset):
         # === convert api index to id
         # api_data should be dictionary with key as index
         api_data = {i: api for i, api in enumerate(api_data.to_dict(orient="records"))}
+        # merge "Finance" into "Financial"
+        for api in api_data.values():
+            if api["category_name"] == "Finance":
+                api["category_name"] = "Financial"
 
         # === preprocess
         # reset qid to start from 0
@@ -340,4 +361,62 @@ class MetaToolDataset(Dataset):
         print("Number of APIs in total:", len(self.api_data))
         print("Number of APIs with query:", len(self.api_data_with_query))
         print("Number of total query-api pairs:", np.sum([len(v) for v in query2apis.values()]))
+        print("Avg number of APIs per query:", np.mean([len(v) for v in query2apis.values()]))
+
+class AnyToolbenchDataset(Dataset):
+    def __init__(self):
+        # === load data
+        path = "/Users/woojeong/Desktop/AnyTool/atb_data/anytoolbench.json"
+        with open(path, "rb") as f:
+            data = json.load(f)
+        api_data = load_api_data()  # toolbench api data
+        
+        # fix minor issues
+        # 'Get Articles by Date' -> 'Get Articles by  Date'
+        data[58]['gt_api_list'][1]['api_name'] = 'Get Articles by  Date'
+        # 'Text Sentiment Analysis' -> 'Text Sentiment Analysis '
+        data[92]['gt_api_list'][1]['tool_name'] = 'Text Sentiment Analysis '
+        
+        # query mapping
+        id2query = {row["query_id"]: row["query"] for row in data}
+        
+        # query to api mapping
+        query2apis = {}
+        for i, row in enumerate(data):
+            query_id = row['query_id']
+            api_list = row['gt_api_list']
+            api_indices = []
+            for api in api_list:
+                match = api_data[
+                    (api_data['category_name'] == api['category_name']) 
+                    & (api_data['tool_name'] == api['tool_name']) 
+                    & (api_data['api_name'] == api['api_name'])]
+                assert len(match) == 1
+                api_indices.append(match.index[0])
+            query2apis[query_id] = api_indices
+
+        # === convert api index to id
+        # api_data should be dictionary with key as index
+        api_data = {i: api for i, api in enumerate(api_data.to_dict(orient="records"))}
+        # merge "Finance" into "Financial"
+        for api in api_data.values():
+            if api["category_name"] == "Finance":
+                api["category_name"] = "Financial"
+
+        # === filter apis with query
+        # flatten the list of apis
+        unique_apis = list(set(chain(*query2apis.values())))
+        api_data_with_query = {api_id: api_data[api_id] for api_id in unique_apis}
+        
+        self.id2query = id2query
+        self.query2apis = query2apis
+        self.api_data = api_data
+        self.api_data_with_query = api_data_with_query
+        self.query2answers = None  # TODO
+
+        print("Dataset Stats:")
+        print("Number of queries:", len(id2query))
+        print("Number of APIs in total:", len(self.api_data))
+        print("Number of APIs with query:", len(self.api_data_with_query))
+        print("Number of total query-api pairs:", len(list(chain(*query2apis.values()))))
         print("Avg number of APIs per query:", np.mean([len(v) for v in query2apis.values()]))
