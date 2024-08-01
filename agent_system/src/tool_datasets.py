@@ -148,12 +148,10 @@ class ToolbenchDataset(Dataset):
         # map doc_id -> api_id (index in api_data)
         correct_mapping  = {}
         manual_mapping = {
-            1105: 36678,
+            1105: 34135,
             3076: 6,
-            5867: 36383,
-            5870: 36400,
-            7330: 11041,
-            7331: 11042,
+            5867: 33854,
+            5870: 33871,
         }
         for id, doc in id2doc.items():
             api_info = json.loads(doc)
