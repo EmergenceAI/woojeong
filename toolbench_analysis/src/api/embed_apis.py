@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from toolbench_analysis.src.api.prompts import API_SUMMARY_PROMPT, API_INTENT_PROMPT
 from toolbench_analysis.src.api.utils import get_gpt_response
-from agent_system.src.tool_datasets import APIGenDataset, ToolbenchDataset, MetaToolDataset
+from agent_system.src.tool_datasets import APIGenDataset, ToolbenchDataset, MetaToolDataset, AnyToolbenchDataset
 
 
 def _create_summary_prompt(
@@ -175,7 +175,7 @@ def embed_texts(id2text, embedding_mode, embedding_model="text-embedding-3-small
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, required=True, choices=["toolbench", "apigen", "metatool"])
+    parser.add_argument("--dataset", type=str, required=True, choices=["toolbench", "apigen", "metatool", "anytoolbench"])
     parser.add_argument("--embed_subset", action="store_true")
     parser.add_argument("--summary_mode", type=str, required=True, choices=["raw", "toolbench", "gpt4-ver1"])
     parser.add_argument("--summary_model", type=str, default="gpt-4-turbo-preview")
@@ -202,6 +202,11 @@ def main(args):
         ds = MetaToolDataset()
         summary_mode = "intent"
         create_description_func = create_raw_api_description_metatool
+    elif args.dataset == "anytoolbench":
+        logging.info("Using AnyToolbench dataset")
+        ds = AnyToolbenchDataset()
+        summary_mode = "summary"
+        create_description_func = create_raw_api_description_toolbench
     api_data: dict = ds.get_api_data()
 
     # # filter out the target doc ids
