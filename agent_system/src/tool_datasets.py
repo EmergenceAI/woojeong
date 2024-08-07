@@ -23,6 +23,9 @@ class Dataset():
     def get_api_data_df(self):
         return pd.DataFrame(self.api_data).T
     
+    def get_api_data_with_query_df(self):
+        return pd.DataFrame(self.api_data_with_query).T
+    
     def get_api_ids(self):
         return list(self.api_data.keys())
     
