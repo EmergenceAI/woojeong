@@ -63,6 +63,9 @@ class Dataset():
         api_ids = [api_id for api_id, api in api_pool.items() if api[feature_name] == feature_value]
         return api_ids
     
+    def get_api_ids_by_query_id(self, qid=0):
+        return self.query2apis[qid]
+    
     def get_apis_by_query_id(self, qid=0):
         apis = self.query2apis[qid]
         api_list = [self.get_api_by_id(api_id) for api_id in apis]

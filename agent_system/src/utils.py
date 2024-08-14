@@ -1,6 +1,7 @@
 import json
 import inspect
 from agent_system.src.tool_simulator import APISimulator
+from typing import List, Dict, Any, Tuple, Union, Optional
 
 def terminate(msg):
     return msg.get("content", "") and msg.get("content", "").rstrip().upper().endswith("##TERMINATE##")
@@ -63,6 +64,30 @@ def convert_to_openai_tool_schema(func_info):
     
     return {'type': 'function', 'function': schema}
 
+
+def pythonize(value, type_str):
+    if type_str == 'str':
+        value = f'"{value}"'
+        value.replace("'", "\'")
+    if type_str == 'bool':
+        return 'True' if value in ['true', 'True', '1'] else 'False'
+
+
+def convert_to_valid_python_type(type_str):
+    # check pure_type is valid
+    if type_str not in ['str', 'int', 'float', 'bool', 'list', 'set', 'dict']:
+        if type_str.startswith('List'):
+            type_str = 'list'
+        elif type_str.startswith('Tuple'):
+            type_str = 'tuple'
+        elif type_str.startswith('Dict'):
+            type_str = 'dict'
+        else:
+            type_str = 'object'
+            # raise ValueError(f'Unknown type: {type_str}')
+    return type_str
+
+
 def convert_api_to_function(api):
     """
     Convert the API to a function that can be registered as a tool.
@@ -89,18 +114,22 @@ def convert_api_to_function(api):
     func_name = api['name']
     description = api['description']
     parameters = api['parameters']
-    # let's ignore type since it's a hassle to convert to python types
     
     func_header = f"def {func_name}("
     param_defaults = []
     
+    optional_flag = False
     for param_name, param_info in parameters.items():
         param_type = param_info['type']
-        pure_type = param_type.split(',')[0]
-        if 'optional' in param_type:
+        # # there exist something like List[Union[int, float]]
+        pure_type = convert_to_valid_python_type(param_type.split(',')[0].strip())
+        if 'optional' in param_type or optional_flag:
             param_type = param_type.replace(', optional', '')
-            param_default = param_info['default'] if param_info['default'] != '' else 'None'
+            param_default = param_info.get("default", 'None')
+            param_default = pythonize(param_default, pure_type)
             param_defaults.append(f"{param_name}: {pure_type}={param_default}")
+            # once we see optional, all the following parameters are optional
+            optional_flag = True
         else:
             param_defaults.append(f"{param_name}: {pure_type}")
 
@@ -123,8 +152,32 @@ def convert_api_to_function(api):
     """
     
     full_function = f"{func_header}\n{docstring}{func_body}"
+    # breakpoint()
     
     exec_globals = {}
-    exec(full_function, globals(), exec_globals)
+    try:
+        exec(full_function, globals(), exec_globals)
+    except Exception as e:
+        print(f"Error while executing function: {e}")
+        print(full_function)
 
     return exec_globals[func_name]
+
+
+def compare_tool_calls(gt, pred):
+        if gt['name'] != pred['name']:
+            return False
+        # convert string to dictionary
+        if type(pred['arguments']) == str:
+            pred['arguments'] = json.loads(pred['arguments'])
+        if type(gt['arguments']) == str:
+            gt['arguments'] = json.loads(gt['arguments'])
+
+        if len(gt['arguments']) != len(pred['arguments']):
+            return False
+        for k in gt['arguments']:
+            if k not in pred['arguments']:
+                return False
+            if gt['arguments'][k] != pred['arguments'][k]:
+                return False
+        return True

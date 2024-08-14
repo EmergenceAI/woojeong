@@ -1,6 +1,8 @@
 LLM_PROMPTS = {
     "USER_AGENT_PROMPT": """A proxy for the user for executing the user commands.""",
-    "ORCHESTRATOR_PROMPT": """You are a helpful AI orchestrator. Given user query, make a plan to solve it first. If you know what tool to use, and call tool-executor to execute the plan. End the conversation with ##TERMINATE##""",
+    "ORCHESTRATOR_PROMPT": """You are a helpful AI orchestrator. Given user query, call tool retriever with the exact query to select most relevant tools.
+    query_text should be what's given from the previous chat, without any modifications.
+    If you know what tool to use, and call tool-executor to execute the plan. End the conversation with ##TERMINATE##""",
     
     # "TOOL_EXECUTOR_PROMPT": """You are a AI tool executor. Given a plan, execute it using the provided APIs.""",
 
@@ -197,4 +199,35 @@ Some basic information about the user: $basic_user_information""",
 
 USER_QUERY = {
     "EXAMPLE_1": "Can you track a package with the tracking number YT2003521266065328 and provide me with the tracking details? Also, detect the carrier for this tracking number."
+}
+
+# from toolbench evaluation
+EVALUATION_PROMPT = {
+    "CHECK_ANSWER_STATUS": """Given the query and answer, you need to give `answer_status` of the answer by following rules:
+1. If the answer is a sorry message or not a positive/straight response for the given query, return "Unsolved".
+2. If the answer is a positive/straight response for the given query, you have to further check.
+2.1 If the answer is not sufficient to determine whether the solve the query or not, return "Unsure".
+2.2 If you are confident that the answer is sufficient to determine whether the solve the query or not, return "Solved" or "Unsolved".
+
+Query:
+{query}
+Answer:
+{answer}
+
+Now give your reason in "content" and `answer_status` of JSON.
+""",
+
+    "PARSE_ANSWER_STATUS": """Given the query and the corresponding execution detail of the answer, you need to give `answer_status` of the answer by the following rules:
+1. If all 'tool_calls' indicate that there are errors happened, return "Unsolved"
+2. If you find the information in the "final_answer" is not true/valid according to the messages in 'tool_call' nodes, return "Unsolved"
+3. If you are unable to verify the authenticity and validity of the information, return "Unsure"
+4. If there are 'tool_call' nodes in the chain contains successful func calling and those calling indeed solve the query, return "Solved"
+
+Query:
+{query}
+Answer:
+{answer}
+
+Now give your reason in "content" and `answer_status` of JSON.
+"""
 }

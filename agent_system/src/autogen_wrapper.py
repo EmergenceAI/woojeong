@@ -7,7 +7,6 @@ import inspect
 from prompts import LLM_PROMPTS
 from dotenv import load_dotenv
 from agent_system.src.utils import terminate, convert_to_openai_tool_schema, convert_api_to_function
-from agent_system.src.tool_simulator import APISimulator
         
 
 class AutogenWrapper:
@@ -74,25 +73,44 @@ class AutogenWrapper:
         self.agents_map = self._initialize_agents(agents_needed)
         print(f">>> Agents initialized: {self.agents_map}")
 
+        # === helper functions ===
+        def last_groupchat_message(
+            sender: autogen.ConversableAgent,
+            recipient: autogen.ConversableAgent,
+            summary_args: dict,
+        ):
+            # return the last message from the groupchat
+            return recipient.chat_messages_for_summary(sender)[-1]['content']
+        
+        def tool_execution_manager_message(recipient, messages, sender, config):
+            return f"Please select the most relevant tools and execute them: {recipient.chat_messages_for_summary(sender)[-1]['content']}"
+
         # === Register nested chat ===
         if len(self.agents_map) == 5:
             # default setting
             # ['user', 'orchestrator', 'tool_executor', 'tool_execution_manager', 'tool_groupchat_manager']
-            def tool_execution_manager_message(recipient, messages, sender, config):
-                return f"Please select the most relevant tools and execute them: {recipient.chat_messages_for_summary(sender)[-1]['content']}"
             nested_chat_queue = [
-                {"recipient": self.agents_map["tool_groupchat_manager"], "message": tool_execution_manager_message, "summary_method": "reflection_with_llm"},
-            ]
+                {"recipient": self.agents_map["tool_groupchat_manager"], "message": tool_execution_manager_message, "summary_method": last_groupchat_message},
+            ]  # NOTE if orchestrator wants to summarize the last message from the groupchat, use reflection_with_llm
         elif "planner" in self.agents_map.keys():
             def planner_message(recipient, messages, sender, config):
                 return f"Come up with a step-by-step plan to solve the given user query. \n\n {recipient.chat_messages_for_summary(sender)[-1]['content']}"
             
             nested_chat_queue = [
                 {"recipient": self.agents_map["planner"], "message": planner_message, "summary_method": "last_msg", "max_turns": 1},
-                {"recipient": self.agents_map["tool_groupchat_manager"], "summary_method": "reflection_with_llm"},
+                {"recipient": self.agents_map["tool_groupchat_manager"], "message": tool_execution_manager_message, "summary_method": last_groupchat_message},
             ]
         elif "tool_retriever" in self.agents_map.keys():
-            raise NotImplementedError("Tool retriever agent is not implemented yet.")
+            # TODO add the case where planner + tool retriever
+            def retriever_message(recipient, messages, sender, config):
+                return f"Retrieve the most relevant tools for the given query: {recipient.chat_messages_for_summary(sender)[-1]['content']}"
+                # return f"Come up with a step-by-step plan to solve the given user query. \n\n {recipient.chat_messages_for_summary(sender)[-1]['content']}"
+            
+            # TODO this doesn't work now, orchestrator should call tool_retriever for tool call
+            nested_chat_queue = [
+                {"recipient": self.agents_map["tool_retriever"], "message": retriever_message, "summary_method": "last_msg", "max_turns": 1},
+                {"recipient": self.agents_map["tool_groupchat_manager"], "summary_method": "reflection_with_llm"},
+            ]
         else:
             raise ValueError("Unknown agents configuration.")
 
@@ -142,8 +160,16 @@ class AutogenWrapper:
                 # TODO: Implement the planner agent
                 agents_map["planner"] = self._create_planner_agent()
             elif agent_needed == "tool_retriever":
-                # TODO Implement the tool retriever agent
-                pass
+                agents_map["tool_retriever"] = self._create_tool_retriever_agent()
+                # register tool retriever
+                from agent_system.src.tool_retriever import retrieve_tool
+                autogen.register_function(
+                    retrieve_tool,
+                    caller=agents_map["orchestrator"],
+                    executor=agents_map["tool_retriever"],
+                    name="retrieve_tool",
+                    description="Retrieve the most relevant tools for the given query.",
+                )
             else:
                 raise ValueError(f"Unknown agent type: {agent_needed}")
         return agents_map
@@ -214,7 +240,7 @@ class AutogenWrapper:
         """
         def is_tool_executor_termination_message(x: dict[str, str])->bool: # type: ignore
              tools_call = x.get("tool_calls", "")
-             if tools_call :
+             if tools_call:
                 return False
              else:
                 return True
@@ -277,6 +303,29 @@ class AutogenWrapper:
         #     ignore_async_in_sync_chat=True
         # )
         return planner_agent
+    
+    def _create_tool_retriever_agent(self):
+        def is_tool_executor_termination_message(x: dict[str, str])->bool: # type: ignore
+             tools_call = x.get("tool_calls", "")
+             if tools_call :
+                return False
+             else:
+                return True
+
+        tool_retriever = autogen.UserProxyAgent(
+            name="tool_retriever",
+            is_termination_msg=is_tool_executor_termination_message,
+            human_input_mode="NEVER",
+            llm_config=None,
+            max_consecutive_auto_reply=self.max_chat_round,
+            code_execution_config={
+                "last_n_messages": 1,
+                "work_dir": "tools",
+                "use_docker": False,
+            },
+            default_auto_reply="",
+        )
+        return tool_retriever
 
     def _register_groupchat(self, tool_execution_manager, tool_executor):
         """
@@ -302,66 +351,31 @@ class AutogenWrapper:
         )
         return manager
 
-    def register_tools(self, apis, use_dummy=False):
+    def register_tools(self, apis):
         """
         Register all the tools that the agent can perform.
         """
-        if use_dummy:
-            # register dummy tools for debugging
-            def get_list_of_provinces_in_thailand():
-                return ["Bangkok", "Chiang Mai", "Phuket", "Krabi", "Pattaya"]
+        for api in apis:
+            # convert api to function and add it to the locals
+            func_name = api["name"]
+            func = convert_api_to_function(api)
+            locals()[func_name] = func
             
-            def get_list_of_provinces_in_canada():
-                return ["Toronto", "Vancouver", "Montreal", "Calgary", "Ottawa"]
-            
-            def get_list_of_districts_in_bangkok_thailand():
-                return ["Bang Kapi", "Bang Khae", "Bang Khen", "Bang Kho Laem", "Bang Khun Thian"]
-            
-            def get_list_of_districts_in_toronto_canada():
-                return ["Old Toronto", "York", "East York", "North York", "Etobicoke"]
-            
-            dummy_tools = [
-                get_list_of_provinces_in_thailand,
-                get_list_of_provinces_in_canada,
-                get_list_of_districts_in_bangkok_thailand,
-                get_list_of_districts_in_toronto_canada
-            ]
-            dummy_tool_descriptions = [
-                "Fetch the list of provinces in Thailand",
-                "Fetch the list of provinces in Canada",
-                "Fetch the list of districts in Bangkok",
-                "Fetch the list of districts in Toronto"
-            ]
-            for tool, desc in zip(dummy_tools, dummy_tool_descriptions):
-                autogen.register_function(
-                    tool,
-                    caller=self.agents_map["tool_execution_manager"],  # The assistant agent can suggest calls to the calculator.
-                    executor=self.agents_map["tool_executor"],  # The user proxy agent can execute the calculator calls.
-                    description=desc,  # A description of the tool.
-                )
-                print(f">>> Registered tool: {tool.__name__}")
-        else:
-            for api in apis:
-                # convert api to function and add it to the locals
-                func_name = api["name"]
-                func = convert_api_to_function(api)
-                locals()[func_name] = func
-                
-                autogen.register_function(
-                    func,
-                    caller=self.agents_map["tool_execution_manager"],  # The assistant agent can suggest calls to the calculator.
-                    executor=self.agents_map["tool_executor"],  # The user proxy agent can execute the calculator calls.
-                    name=func_name,  # By default, the function name is used as the tool name.
-                    description=api["description"],  # A description of the tool.
-                )
-                # update llm tool signature
-                self.agents_map["tool_execution_manager"].update_tool_signature(
-                    convert_to_openai_tool_schema(api),
-                    is_remove=False)
-                print(f">>> Registered tool: {func_name}")
-            print(">>> All tools available")
-            print(self.agents_map["tool_execution_manager"].llm_config["tools"])
-            # breakpoint()
+            autogen.register_function(
+                func,
+                caller=self.agents_map["tool_execution_manager"],  # The assistant agent can suggest calls to the calculator.
+                executor=self.agents_map["tool_executor"],  # The user proxy agent can execute the calculator calls.
+                name=func_name,  # By default, the function name is used as the tool name.
+                description=api["description"],  # A description of the tool.
+            )
+            # update llm tool signature
+            self.agents_map["tool_execution_manager"].update_tool_signature(
+                convert_to_openai_tool_schema(api),
+                is_remove=False)
+            print(f">>> Registered tool: {func_name}")
+        print(">>> All tools available")
+        print(self.agents_map["tool_execution_manager"].llm_config["tools"])
+        # breakpoint()
     
     def initiate_chat(self, user_query: str = None):
         res = self.agents_map["user"].initiate_chats(
@@ -374,6 +388,27 @@ class AutogenWrapper:
                  },
             ]
         )
+
+        # get tool calls
+        tool_executor_messages = self.agents_map['tool_groupchat_manager'].chat_messages[self.agents_map["tool_executor"]]
+        tool_calls = []
+        for message in tool_executor_messages:
+            tool_call = message.get("tool_calls", "")
+            if tool_call:
+                print(f">>> Tool call: {tool_call}")
+                tool_calls.append(tool_call)\
+        
+        # final response
+        final_response = res[0].chat_history[-1]['content']
+        print(f">>> Response: {final_response}")
+        # res[0].chat_history only contains the first and last message
+        
+        # reasoning traces
+        messages = self.agents_map['tool_groupchat_manager'].chat_messages
+        messages_str_keys = {agent.name: message for agent, message in messages.items()}
+        # right now, tool_execution_manager contains all the necessary information
+        traces = messages_str_keys['tool_execution_manager']
+        return tool_calls, traces, final_response
     
 if __name__ == "__main__":
     autogen_wrapper = AutogenWrapper(max_chat_round=50)

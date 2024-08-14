@@ -89,7 +89,12 @@ class ToolRetriever:
         # convert index to id
         I = np.vectorize(lambda x: self.apiidx2id[x])(I)
 
-        return I
+        return I.tolist()
+    
+def retrieve_tool(query_text: str, dataset: str = "toolbench") -> List[int]:
+    tool_retriever = ToolRetriever(dataset)
+    retrieved_apis = tool_retriever.call(query_text=query_text, k=5)
+    return retrieved_apis
 
 
 if __name__ == "__main__":
