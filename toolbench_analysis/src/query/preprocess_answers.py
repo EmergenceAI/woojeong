@@ -164,9 +164,21 @@ if __name__ == "__main__":
         tool_calls = [
             call for call in tool_calls if call["name"] != "Finish"
         ]  # remove Finish helper function
+        
+        # check if args are valid json
+        skip_flag = False
+        for tool_call in tool_calls:
+            try:
+                json.loads(tool_call['args'])
+            except:
+                print(f"Invalid args: {tool_call['args']}")
+                skip_flag = True
+                break
+        if skip_flag:
+            continue
 
         # match api_ids with functions
-        skip_flag = False
+        
         name2apiid = {}
         for api_id, func in zip(api_ids, functions):
             api = ds.get_api_by_id(api_id)
