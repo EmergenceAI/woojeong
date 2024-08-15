@@ -83,7 +83,46 @@ class Dataset():
     def __len__(self):
         return len(self.id2query)
 
+
 class ToolbenchDataset(Dataset):
+    def __init__(self, subset="G1"):
+        # === load data
+        toolbench_data_folder = "/Users/woojeong/Desktop/woojeong/toolbench_analysis/data/"
+        gt_path = os.path.join(toolbench_data_folder, f"{subset}_gt.pkl")
+        assert os.path.exists(gt_path), f"File {gt_path} does not exist, run preprocess_answers.py first"
+        with open(gt_path, "rb") as f:
+            gt = pickle.load(f)
+        # gt keys: ['query', 'final_answer', 'traces', 'functions', 'tool_calls', 'api_ids']
+
+        id2query = {qid: data["query"] for qid, data in gt.items()}
+        query2apis = {qid: data["api_ids"] for qid, data in gt.items()}
+        query2answers = {qid: data["tool_calls"] for qid, data in gt.items()}
+        # for each tool_call, change 'args' to 'arguments'
+        for _, tool_calls in query2answers.items():
+            for tool_call in tool_calls:
+                tool_call["arguments"] = json.loads(tool_call.pop("args"))
+
+        unique_apis = list(set(chain(*query2apis.values())))
+
+        api_data = load_api_data()
+        api_data = {i: api for i, api in enumerate(api_data.to_dict(orient="records"))}
+        api_data_with_query = {api_id: api_data[api_id] for api_id in unique_apis}
+
+        self.id2query = id2query
+        self.query2apis = query2apis
+        self.api_data = api_data
+        self.api_data_with_query = api_data_with_query
+        self.query2answers = query2answers
+
+        print("Dataset Stats:")
+        print("Number of queries:", len(id2query))
+        print("Number of APIs in total:", len(self.api_data))
+        print("Number of APIs with query:", len(self.api_data_with_query))
+        print("Number of total query-api pairs:", np.sum([len(v) for v in query2apis.values()]))
+        print("Avg number of APIs per query:", np.mean([len(v) for v in query2apis.values()]))
+
+
+class ToolbenchRetrievalDataset(Dataset):
     def __init__(self, split="concat", load_query_data=False):
         # === load data
         # toolbench_data_folder = "/Users/woojeong/Desktop/woojeong/toolbench_analysis/data/"
@@ -97,10 +136,6 @@ class ToolbenchDataset(Dataset):
         # === convert api index to id
         # api_data should be dictionary with key as index
         api_data = {i: api for i, api in enumerate(api_data.to_dict(orient="records"))}
-        # merge "Finance" into "Financial"
-        for api in api_data.values():
-            if api["category_name"] == "Finance":
-                api["category_name"] = "Financial"
 
         # === preprocess
         # reset qid to start from 0
