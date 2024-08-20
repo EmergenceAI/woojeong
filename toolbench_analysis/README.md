@@ -11,6 +11,20 @@ python src/api/create_api_hf_dataset.py --push_to_hub
 ```
 * HF dataset - https://huggingface.co/datasets/MerlynMind/toolbench_api
 
+## load queries & anser trajactories
+```bash
+python src/query/preprocess_answers.py --subset G1 --result_dir data
+```
+* this will create `data/G1_gt.pkl`
+
+## Embed API docs
+```python
+python src/api/embed_apis.py --dataset toolbench --summary_mode raw --embedding_mode openai --embedding_model text-embedding-3-small --summary_dir data/api_summaries_toolbench/ --embedding_dir data/api_embeddings_toolbench/
+```
+* datasets: `toolbench`, `apigen`, `metatool`, `anytoolbench`
+* summary_mode: `raw`, `toolbench`, `gpt4-ver1`
+
+# Deprecated
 ## load queries & answer trajactories -> pandas dataframe and push to hf hub
 ```bash
 python src/query/create_api_hf_dataset.py --subset g1 --push_to_hub
@@ -35,14 +49,3 @@ api_data = load_api_data()
 query_data = load_query_data("g1")
 ```
 
-## Embed API docs
-```python
-python src/api/embed_apis.py --embed_subset --summary_mode raw
-```
-* summary_mode: `raw`, `toolbench`, `gpt4-ver1`
-
-## Todo
-- [x] preprocess query-api relations
-- [ ] split train/val apis
-- [ ] split train/val queries
-- [ ] queries in instructions > answers, where are missing answers?
