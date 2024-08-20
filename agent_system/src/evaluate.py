@@ -159,6 +159,8 @@ def evaluate(eval_result_dict, args, qid, ds, result):
         eval_result = eval_result_dict[qid]
     else:
         eval_result = {}
+    
+    print(f"Evaluating query {qid}")
     query = ds.get_query_by_id(qid)
     gt_apis = ds.get_apis_by_query_id(qid)
     gt_api_ids = ds.get_api_ids_by_query_id(qid)
@@ -265,13 +267,11 @@ if __name__ == "__main__":
     if args.n_threads == 1:
         # without multithreading for debugging
         for qid, result in result_dict.items():
-            print(f"Evaluating query {qid}")
             evaluate(eval_result_dict, args, qid, ds, result)
     else:
         # multi-threaded evaluation
         with CustomThreadPoolExecutor(max_workers=args.n_threads) as executor:
             for qid, result in result_dict.items():
-                print(f"Evaluating query {qid}")
                 executor.submit(evaluate, eval_result_dict, args, qid, ds, result)
     
     # save evaluation results

@@ -8,6 +8,7 @@ from tqdm import tqdm
 from agent_system.src.tool_datasets import ToolbenchDataset, APIGenDataset, MetaToolDataset
 from agent_system.src.autogen_wrapper import AutogenWrapper
 from agent_system.src.tool_retriever import ToolRetriever
+from agent_system.src.utils import convert_api_for_registration
 
 
 def parse_args():
@@ -34,6 +35,17 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Dataset {args.dataset} not supported")
 
+    # # test tools
+    # autogen_wrapper = AutogenWrapper(max_chat_round=args.autogen_max_chat_round)
+    # autogen_wrapper.create(["user", "orchestrator", "tool_executor", "tool_execution_manager"])
+    # print("AutogenWrapper created successfully")
+    # tools = ds.get_api_data_with_query()
+    # for tool_id, tool in tqdm(tools.items()):
+    #     converted_tool = convert_api_for_registration(args.dataset, tool)
+    #     autogen_wrapper.register_tools([converted_tool])
+    # exit()
+
+    
     # retrieve tools
     # TODO consider merging this into autogen
     tool_retriever = ToolRetriever(args.dataset)
@@ -57,15 +69,15 @@ if __name__ == "__main__":
         answers = ds.get_answers_by_query_id(qid)
 
         # let's process multi-step queries first
-        if len(answers) <= 1:
+        if len(gt_api_ids) <= 1:
             continue
 
         if str(qid) in result_dict:
             print(f"Query {qid} already exists in result file")
             continue
-
         retrieved_api_ids = tool_retriever.call(query_id=qid, k=args.tool_top_k)
         retrieved_apis = [ds.get_api_by_id(api_id) for api_id in retrieved_api_ids]
+        retrieved_apis = [convert_api_for_registration(args.dataset, api) for api in retrieved_apis]
 
         print(f"Query {qid}: {query}")
         print(f"Number of ground truth APIs: {len(gt_apis)}")
@@ -91,6 +103,7 @@ if __name__ == "__main__":
             tool_calls, traces, final_response = autogen_wrapper.initiate_chat(user_query=query)
         except Exception as e:
             print(f"Error while running autogen: {e}")
+            breakpoint()
             continue
 
         # write tool_calls and response to file

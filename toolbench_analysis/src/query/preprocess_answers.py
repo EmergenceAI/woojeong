@@ -6,7 +6,7 @@ from natsort import natsorted
 from dotenv import load_dotenv
 from tqdm import tqdm
 from agent_system.src.tool_datasets import ToolbenchDataset
-from agent_system.src.utils import standardize, change_name
+from agent_system.src.utils import convert_api_name
 
 
 def extrace_tool_calls_from_traces(traces):
@@ -82,14 +82,6 @@ def parse_final_answer(action_input):
             json_data["final_answer"] = ""
 
     return json_data
-
-
-def convert_api_name(tool_name, api_name):
-    api_name = change_name(standardize(api_name))
-    tool_name = standardize(tool_name)
-    name = api_name + f"_for_{tool_name}"
-    name = name[-64:]
-    return name
 
 
 def parse_args():

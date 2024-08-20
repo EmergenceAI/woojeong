@@ -355,6 +355,15 @@ class AutogenWrapper:
         """
         Register all the tools that the agent can perform.
         """
+        def _update_descriptions_(tool, api):
+            # update tool description
+            tool["function"]["description"] = api.get("description", "")
+            # update parameter description
+            for param in api["required_params"] + api["optional_params"]:
+                param_name = param["name"]
+                tool["function"]["parameters"]["properties"][param_name]["description"] = param.get("description", "")
+            return tool
+
         for api in apis:
             # convert api to function and add it to the locals
             func_name = api["name"]
@@ -368,10 +377,17 @@ class AutogenWrapper:
                 name=func_name,  # By default, the function name is used as the tool name.
                 description=api["description"],  # A description of the tool.
             )
-            # update llm tool signature
-            self.agents_map["tool_execution_manager"].update_tool_signature(
-                convert_to_openai_tool_schema(api),
-                is_remove=False)
+            # update tool description manually
+            # this can potentially improve tool call suggestions
+            registered_tools = self.agents_map["tool_execution_manager"].llm_config["tools"]
+            tool = next((tool for tool in registered_tools if tool["function"]["name"] == func_name), None)
+            _update_descriptions_(tool, api)
+
+            # # update llm tool signature
+            # self.agents_map["tool_execution_manager"].update_tool_signature(
+            #     convert_to_openai_tool_schema(api),
+            #     is_remove=False
+            # )
             print(f">>> Registered tool: {func_name}")
         print(">>> All tools available")
         print(self.agents_map["tool_execution_manager"].llm_config["tools"])

@@ -120,7 +120,7 @@ def get_gpt_response_multithread(messages, model="gpt-4-turbo-preview", temperat
                     temperature=temperature,
                     timeout=120
                 )
-                print(f'response is {response}')
+                # print(f'response is {response}')
             except Exception as e:
                 logging.info(f"Exception encountered {e}, going to sleep")
                 time.sleep(60)

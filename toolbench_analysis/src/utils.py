@@ -91,6 +91,9 @@ def load_api_data(local_file_path="data/api_data.csv", drop_duplicates=True):
     
     if drop_duplicates:
         df.drop_duplicates(subset=["category_name", "tool_name", "api_name"], inplace=True, ignore_index=True)
+    
+    # merge "Finance" into "Financial"
+    df.loc["category_name", "Finance"] = "Financial"
     return df
 
 

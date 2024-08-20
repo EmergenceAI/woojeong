@@ -69,6 +69,10 @@ class APISimulator():
             str: response in json format
             int: status code
         """
+        if "```json" in response:
+            response = response.split("```json")[1]
+            response = response.split("```")[0]
+
         try:
             response = json.loads(response)
         except:

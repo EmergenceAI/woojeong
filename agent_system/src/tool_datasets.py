@@ -256,7 +256,7 @@ class APIGenDataset(Dataset):
         api_names_with_query = [answer["name"] for answer in unique_answers]
         assert set(api_names_with_query).issubset(set(api_names)), "Some APIs in the answers are not in the API data."
         # select from the api_data
-        api_data_with_query: dict = {api_name2id[api["name"]]: api for api in unique_answers}
+        api_data_with_query: dict = {api_name2id[name]: api_data[api_name2id[name]] for name in api_names_with_query}
 
         # create mapping from query to apis
         query2answers = {qid: answer_list for qid, answer_list in zip(ds["id"], nested_answers)}

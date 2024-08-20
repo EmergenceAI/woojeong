@@ -176,7 +176,7 @@ def embed_texts(id2text, embedding_mode, embedding_model="text-embedding-3-small
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, required=True, choices=["toolbench", "apigen", "metatool", "anytoolbench"])
-    parser.add_argument("--embed_subset", action="store_true")
+    # parser.add_argument("--embed_subset", action="store_true")
     parser.add_argument("--summary_mode", type=str, required=True, choices=["raw", "toolbench", "gpt4-ver1"])
     parser.add_argument("--summary_model", type=str, default="gpt-4-turbo-preview")
     parser.add_argument("--embedding_mode", type=str, default="openai", choices=["openai", "toolbench-retriever"])
@@ -269,7 +269,7 @@ def main(args):
     os.makedirs(args.embedding_dir, exist_ok=True)
     
     # embed apis
-    save_path = os.path.join(args.embedding_dir, f"id2api_embed_{args.summary_mode}_{args.embedding_mode}_{len(api_data)}.pkl")
+    save_path = os.path.join(args.embedding_dir, f"id2api_embed_{args.summary_mode}_{args.embedding_mode}.pkl")
     if os.path.exists(save_path):
         logging.info(f"API embeddings already exist at {save_path}")
     else:

@@ -1,5 +1,7 @@
 toolbench_analysis/data/
 toolbench_analysis/retrieval_results/
+agent_system/results/*
+assets/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
