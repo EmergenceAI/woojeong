@@ -13,9 +13,12 @@ def terminate(msg):
 
 # utils imported from toolbench
 def change_name(name):
-    change_list = ["from", "class", "return", "false", "true", "id", "and"]
-    if name in change_list:
+    if len(name) == 0:
+        return name
+    if name in ["from", "class", "return", "false", "true", "id", "and", "pass"]:
         name = "is_" + name
+    if name in ["type", "print", "input", "open", "file", "exec", "eval", "class", "def"]:
+        name = "get_" + name
     if name[0].isdigit():
         name = "get_" + name
     return name
@@ -53,6 +56,7 @@ def standardize(string):
 
 
 def convert_api_name(tool_name, api_name):
+    # print(f"converting api name: {api_name}, tool name: {tool_name}")
     api_name = change_name(standardize(api_name))
     tool_name = standardize(tool_name)
     name = api_name + f"_for_{tool_name}"
@@ -190,7 +194,7 @@ def convert_to_valid_python_type(type_str):
     return type_str
 
 
-def convert_api_for_registration(dataset, api):
+def convert_api_for_registration(dataset, api, max_desc_len=1000):
     """
     Convert the API to a standard format for function registration.
     Example:
@@ -217,7 +221,8 @@ def convert_api_for_registration(dataset, api):
     if dataset == "toolbench":
         required_params, optional_params = [], []
         for param in api["api_required_parameters"]:
-            param_name = standardize(change_name(param["name"]))
+            # print(f"converting param: {param['name']}")
+            param_name = change_name(standardize(param["name"]))
             pure_type = convert_to_valid_python_type(param["type"])
             # if param is duplicated, pass
             if param_name in [p["name"] for p in required_params]:
@@ -230,7 +235,7 @@ def convert_api_for_registration(dataset, api):
                 }
             )
         for param in api["api_optional_parameters"]:
-            param_name = standardize(change_name(param["name"]))
+            param_name = change_name(standardize(param["name"]))
             pure_type = convert_to_valid_python_type(param["type"])
             default_value = pythonize(param.get("default", "None"), pure_type)
             # if param is duplicated, pass
@@ -247,6 +252,7 @@ def convert_api_for_registration(dataset, api):
 
         # description can't be empty
         description = api.get("api_description", "")
+        description = description[:max_desc_len]
         if description.strip() == "":
             description = f"This is the subfunction for tool \"{api['tool_name']}\", you can use this tool."
 

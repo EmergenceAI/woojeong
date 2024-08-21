@@ -60,6 +60,7 @@ class ToolRetriever:
         k: int = 10,
         query_id: int = 0,
         query_text: str = "",
+        candidate_ids: List[int] = [],
     ) -> List[int]:
         if query_text != "":
             # embed query
@@ -81,10 +82,15 @@ class ToolRetriever:
             assert query_id in self.query_embed, f"query_id {query_id} not found"
             query = np.array([self.query_embed[query_id]]).astype(np.float32)
 
+        if len(candidate_ids) > 0:
+            id_selector = faiss.IDSelectorArray(list(candidate_ids))
+        else:
+            id_selector = None
+
         if self.sim_metric == "cosine":
             faiss.normalize_L2(query)
 
-        D, I = self.index.search(query, k)
+        D, I = self.index.search(query, k, params=faiss.SearchParametersIVF(sel=id_selector))
         D, I = D[0], I[0]
         # convert index to id
         I = np.vectorize(lambda x: self.apiidx2id[x])(I)

@@ -140,6 +140,8 @@ if __name__ == "__main__":
 
         # parse info
         query = ans["answer_generation"]["query"]
+        if type(query) == list:
+            continue
         functions = ans["answer_generation"]["function"]
         functions = [
             f for f in functions if f["name"] != "Finish"

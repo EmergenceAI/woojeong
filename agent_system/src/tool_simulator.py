@@ -77,27 +77,10 @@ class APISimulator():
             response = json.loads(response)
         except:
             print(response)
-            return json.dumps({"error": f"JSON parsing error", "response": ""}), 12
+            return json.dumps({"error": f"JSON parsing error", "response": ""})
 
         if "error" not in response or "response" not in response:
-            return json.dumps({"error": "Simulator output format error", "response": ""}), 13
-        
-        if response["error"] == "API not working error...":
-            status_code = 6
-        elif response["error"] == "Unauthorized error...":
-            status_code = 7
-        elif response["error"] == "Unsubscribed error...":
-            status_code = 8
-        elif response["error"] == "Too many requests error...":
-            status_code = 9
-        elif response["error"] == "Rate limit per minute error...":
-            print("Reach api calling limit per minute, sleeping...")
-            time.sleep(10)
-            status_code = 10
-        elif response["error"] == "Message error...":
-            status_code = 11
-        else:
-            status_code = 0
+            return json.dumps({"error": "Simulator output format error", "response": ""})
         return json.dumps(response)
     
     def run(self, api_input: dict):

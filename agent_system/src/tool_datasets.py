@@ -16,6 +16,7 @@ class Dataset():
     api_data_with_query: dict = None
     query2answers: dict = None
     api_name2id: dict = None
+    dataset_name: str = None
 
     def get_api_data(self):
         return self.api_data
@@ -85,7 +86,8 @@ class Dataset():
 
 
 class ToolbenchDataset(Dataset):
-    def __init__(self, subset="G1"):
+    def __init__(self, subset="G1", multi_step=False):
+        self.name = "toolbench"
         # === load data
         toolbench_data_folder = "/Users/woojeong/Desktop/woojeong/toolbench_analysis/data/"
         gt_path = os.path.join(toolbench_data_folder, f"{subset}_gt.pkl")
@@ -108,6 +110,17 @@ class ToolbenchDataset(Dataset):
         api_data = {i: api for i, api in enumerate(api_data.to_dict(orient="records"))}
         api_data_with_query = {api_id: api_data[api_id] for api_id in unique_apis}
 
+        # filter multi-step queries
+        if multi_step:
+            print("Filtering multi-step queries")
+            multi_tool_queries = [qid for qid, apis in query2apis.items() if len(set(apis)) > 1]
+            multi_step_queries = [qid for qid, answers in query2answers.items() if len(answers) > 1]
+            multi_queries = set(multi_tool_queries).intersection(set(multi_step_queries))
+            id2query = {qid: query for qid, query in id2query.items() if qid in multi_queries}
+            query2apis = {qid: apis for qid, apis in query2apis.items() if qid in multi_queries}
+            query2answers = {qid: answers for qid, answers in query2answers.items() if qid in multi_queries}
+            api_data_with_query = {api_id: api_data[api_id] for api_id in set(chain(*query2apis.values()))}
+
         self.id2query = id2query
         self.query2apis = query2apis
         self.api_data = api_data
@@ -124,6 +137,7 @@ class ToolbenchDataset(Dataset):
 
 class ToolbenchRetrievalDataset(Dataset):
     def __init__(self, split="concat", load_query_data=False):
+        self.name = "toolbenchretrieval"
         # === load data
         # toolbench_data_folder = "/Users/woojeong/Desktop/woojeong/toolbench_analysis/data/"
         query_api_mapping_df, id2doc, id2query = load_query_api_mapping()
@@ -224,7 +238,8 @@ class ToolbenchRetrievalDataset(Dataset):
 
 
 class APIGenDataset(Dataset):
-    def __init__(self):
+    def __init__(self, multi_step=False):
+        self.name = "apigen"
         from datasets import load_dataset
 
         # Login using e.g. `huggingface-cli login` to access this dataset
@@ -265,6 +280,17 @@ class APIGenDataset(Dataset):
         query2api_names = {qid: [api["name"] for api in api_list] for qid, api_list in zip(qids, nested_answers)}
         query2apis = {qid: [api_name2id[name] for name in name_list] for qid, name_list in query2api_names.items()}
         assert len(query2apis) == len(id2query)
+
+        # filter multi-step queries
+        if multi_step:
+            print("Filtering multi-step queries")
+            multi_tool_queries = [qid for qid, apis in query2apis.items() if len(set(apis)) > 1]
+            multi_step_queries = [qid for qid, answers in query2answers.items() if len(answers) > 1]
+            multi_queries = set(multi_tool_queries).intersection(set(multi_step_queries))
+            id2query = {qid: query for qid, query in id2query.items() if qid in multi_queries}
+            query2apis = {qid: apis for qid, apis in query2apis.items() if qid in multi_queries}
+            query2answers = {qid: answers for qid, answers in query2answers.items() if qid in multi_queries}
+            api_data_with_query = {api_id: api_data[api_id] for api_id in set(chain(*query2apis.values()))}
 
         self.id2query = id2query
         self.query2apis = query2apis
@@ -316,6 +342,7 @@ class APIGenDataset(Dataset):
 
 class MetaToolDataset(Dataset):
     def __init__(self, split="concat"):
+        self.name = "metatool"
         # === load dataset
         # clone https://github.com/HowieHwong/MetaTool/tree/master first
         metatool_folder = "/Users/woojeong/Desktop/MetaTool/dataset"
@@ -406,6 +433,7 @@ class MetaToolDataset(Dataset):
 
 class AnyToolbenchDataset(Dataset):
     def __init__(self):
+        self.name = "anytoolbench"
         # === load data
         # clone https://github.com/dyabel/AnyTool/tree/public first
         path = "/Users/woojeong/Desktop/AnyTool/atb_data/anytoolbench.json"
