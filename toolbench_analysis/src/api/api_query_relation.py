@@ -70,9 +70,9 @@ if __name__ == "__main__":
     load_dotenv(args.env_path)
 
     # load api documents
-    toolbench_dir = os.getenv("TOOLBENCH_FOLDER")
+    toolbench_dir = os.getenv("TOOLBENCH_DIR")
     data_dir = os.path.join(
-        toolbench_dir, f"data/retrieval/G1/"
+        toolbench_dir, f"retrieval/G1/"
     )  # only G1 is available
     api_doc_df = pd.read_csv(os.path.join(data_dir, "corpus.tsv"), sep="\t")
     logging.info(f"Loaded API documents from {data_dir}")

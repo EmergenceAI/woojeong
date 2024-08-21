@@ -97,9 +97,9 @@ if __name__ == "__main__":
     args = parse_args()
 
     # load toolbench train data
-    toolbench_folder = os.getenv("TOOLBENCH_FOLDER")
+    toolbench_folder = os.getenv("TOOLBENCH_DIR")
     inst_path = os.path.join(
-        toolbench_folder, f"data/instruction/{args.subset}_query.json"
+        toolbench_folder, f"instruction/{args.subset}_query.json"
     )
     with open(inst_path, "r") as f:
         inst_list = json.load(f)

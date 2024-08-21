@@ -88,7 +88,7 @@ def read_apis(path):
 
 def main():
     data_folder = os.path.join(
-        os.getenv("TOOLBENCH_FOLDER"), "data", "toolenv", "tools"
+        os.getenv("TOOLBENCH_DIR"), "toolenv", "tools"
     )
     api_data = read_apis(data_folder)
     store_api_data(api_data, os.getenv("API_DATA_STORE"))

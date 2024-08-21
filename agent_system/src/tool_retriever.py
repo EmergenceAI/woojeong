@@ -14,7 +14,8 @@ class ToolRetriever:
         embedding_mode="openai",
         api_summary_mode="raw",
     ):
-        embed_dir = f"/Users/woojeong/Desktop/woojeong/toolbench_analysis/data/api_embeddings_{dataset}"
+        api_embedding_base_dir = os.getenv("GENERATED_DATA_DIR")
+        embed_dir = os.path.join(api_embedding_base_dir, f"api_embeddings_{dataset}")
         try:
             query_embed = pickle.load(
                 open(

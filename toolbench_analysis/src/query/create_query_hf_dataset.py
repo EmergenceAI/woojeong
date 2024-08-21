@@ -33,9 +33,9 @@ if __name__ == "__main__":
     load_dotenv(args.env_path)
 
     # load instruction
-    toolbench_dir = os.getenv("TOOLBENCH_FOLDER")
+    toolbench_dir = os.getenv("TOOLBENCH_DIR")
     inst_path = os.path.join(
-        toolbench_dir, f"data/instruction/{args.subset.upper()}_query.json"
+        toolbench_dir, f"instruction/{args.subset.upper()}_query.json"
     )
 
     with open(inst_path) as f:

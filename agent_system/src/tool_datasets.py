@@ -89,8 +89,7 @@ class ToolbenchDataset(Dataset):
     def __init__(self, subset="G1", multi_step=False):
         self.name = "toolbench"
         # === load data
-        toolbench_data_folder = "/Users/woojeong/Desktop/woojeong/toolbench_analysis/data/"
-        gt_path = os.path.join(toolbench_data_folder, f"{subset}_gt.pkl")
+        gt_path = os.path.join(os.getenv("GENERATED_DATA_DIR"), f"{subset}_gt.pkl")
         assert os.path.exists(gt_path), f"File {gt_path} does not exist, run preprocess_answers.py first"
         with open(gt_path, "rb") as f:
             gt = pickle.load(f)
@@ -139,7 +138,6 @@ class ToolbenchRetrievalDataset(Dataset):
     def __init__(self, split="concat", load_query_data=False):
         self.name = "toolbenchretrieval"
         # === load data
-        # toolbench_data_folder = "/Users/woojeong/Desktop/woojeong/toolbench_analysis/data/"
         query_api_mapping_df, id2doc, id2query = load_query_api_mapping()
         api_data = load_api_data()
 
@@ -344,8 +342,7 @@ class MetaToolDataset(Dataset):
     def __init__(self, split="concat"):
         self.name = "metatool"
         # === load dataset
-        # clone https://github.com/HowieHwong/MetaTool/tree/master first
-        metatool_folder = "/Users/woojeong/Desktop/MetaTool/dataset"
+        metatool_folder = os.getenv("METATOOL_DIR")
         # single
         single_tool_data = pd.read_csv(os.path.join(metatool_folder, "data/all_clean_data.csv"))
         single_tool_data.rename(columns={"Query": "query", "Tool": "tool"}, inplace=True)
@@ -435,8 +432,7 @@ class AnyToolbenchDataset(Dataset):
     def __init__(self):
         self.name = "anytoolbench"
         # === load data
-        # clone https://github.com/dyabel/AnyTool/tree/public first
-        path = "/Users/woojeong/Desktop/AnyTool/atb_data/anytoolbench.json"
+        path = os.path.join(os.getenv("ANYTOOLBENCH_DIR"), "anytoolbench.json")
         with open(path, "rb") as f:
             data = json.load(f)
         api_data = load_api_data()  # toolbench api data
