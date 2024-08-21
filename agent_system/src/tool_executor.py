@@ -6,12 +6,12 @@ import argparse
 import time
 import pickle
 import json
-import re
 from dotenv import load_dotenv
 from tqdm import tqdm
 from enum import Enum
 from agent_system.src.utils import terminate
 from agent_system.src.prompts import LLM_PROMPTS
+from agent_system.src.utils import standardize
 from toolbench_analysis.src.utils import load_api_data, load_query_api_mapping, load_query_data
 
 
@@ -68,23 +68,20 @@ class APIExecutor():
             status_code = 0
         return json.dumps(response), status_code
     
-    def run(self, category, tool_name, api_name, tool_input):
+    def run(self, api_data: dict):
         """Run API call
         Args:
-            category (str): category name
-            tool_name (str): tool name
-            api_name (str): api name
-            tool_input (str): tool input in json format
+            api_data (dict): dictionary containing the api data
         
         Returns:
             str: response in json format
             int: status code
         """
         payload = {
-            "category": category,
-            "tool_name": tool_name,
-            "api_name": api_name,
-            "tool_input": tool_input,
+            "category": api_data["category_name"],
+            "tool_name": api_data["tool_name"],
+            "api_name": api_data["api_name"],
+            "tool_input": api_data["input_parameters"],
             "strip": "truncate",
             "toolbench_key": self.toolbench_key,
         }
@@ -115,37 +112,6 @@ def call_api_executor(api_data: dict) -> tuple[dict, int]:
         api_data["input_parameters"],
     )
     return response, status_code
-
-
-# utils imported from toolbench
-def standardize_category(category):
-    save_category = category.replace(" ", "_").replace(",", "_").replace("/", "_")
-    while " " in save_category or "," in save_category:
-        save_category = save_category.replace(" ", "_").replace(",", "_")
-    save_category = save_category.replace("__", "_")
-    return save_category
-
-def standardize(string):
-    res = re.compile("[^\\u4e00-\\u9fa5^a-z^A-Z^0-9^_]")
-    string = res.sub("_", string)
-    string = re.sub(r"(_)\1+","_", string).lower()
-    while True:
-        if len(string) == 0:
-            return string
-        if string[0] == "_":
-            string = string[1:]
-        else:
-            break
-    while True:
-        if len(string) == 0:
-            return string
-        if string[-1] == "_":
-            string = string[:-1]
-        else:
-            break
-    if string[0].isdigit():
-        string = "get_" + string
-    return string
 
 
 def create_function_code(func_info):
@@ -217,35 +183,18 @@ def {func_name}({param_str}):
     print('Function {func_name} called with:', {', '.join([param['name'] for param in required_params] + [param['name'] for param in optional_params])})
     # execute api
     api_executor = APIExecutor()
-    response, status_code = api_executor.run(
-        api_data["category_name"],
-        api_data["tool_name"],
-        api_data["api_name"],
-        api_data["input_parameters"],
-    )
+    response, status_code = api_executor.run(api_data)
     return response, status_code
 """
     return function_code
 
 def convert_apis_to_functions(apis, globals=globals()):
-    breakpoint()
-
     for api in tqdm(apis):
-        func_name = standardize(api["api_name"])
+        # get "api_name" or "name" from api
+        api_name = api.get("api_name", api.get("name"))
+        func_name = standardize(api_name)
         api['func_name'] = func_name
-        func_code = create_function_code(api)
-        print(func_code)
-        exec(func_code, globals)
-        # except Exception as e:
-        #     print(f"Error: {e}")
-        #     breakpoint()
-        # Store the function in the dictionary
-        api["func"] = globals[func_name]
-        print(f"Function '{func_name}' created successfully")
-        
-    for api in tqdm(apis):
-        func_name = standardize(api["api_name"])
-        api['func_name'] = func_name
+        # query the api
         func_code = create_function_code(api)
         print(func_code)
         exec(func_code, globals)
@@ -256,12 +205,6 @@ def convert_apis_to_functions(apis, globals=globals()):
         api["func"] = globals[func_name]
         print(f"Function '{func_name}' created successfully")
 
-
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--number_of_rounds", type=int, default=1)
-    parser.add_argument("--agents_needed", nargs="+", default=["user", "orchestrator"])
-    return parser.parse_args()
 
 def main(args):
     # load datasets
