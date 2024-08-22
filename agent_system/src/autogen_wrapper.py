@@ -389,8 +389,8 @@ class AutogenWrapper:
             #     is_remove=False
             # )
             print(f">>> Registered tool: {func_name}")
-        print(">>> All tools available")
-        print(self.agents_map["tool_execution_manager"].llm_config["tools"])
+        # print(">>> All tools available")
+        # print(self.agents_map["tool_execution_manager"].llm_config["tools"])
         # breakpoint()
     
     def initiate_chat(self, user_query: str = None):

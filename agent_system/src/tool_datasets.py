@@ -429,7 +429,7 @@ class MetaToolDataset(Dataset):
 
 
 class AnyToolbenchDataset(Dataset):
-    def __init__(self):
+    def __init__(self, multi_step=False):
         self.name = "anytoolbench"
         # === load data
         path = os.path.join(os.getenv("ANYTOOLBENCH_DIR"), "anytoolbench.json")
@@ -473,6 +473,15 @@ class AnyToolbenchDataset(Dataset):
         # flatten the list of apis
         unique_apis = list(set(chain(*query2apis.values())))
         api_data_with_query = {api_id: api_data[api_id] for api_id in unique_apis}
+
+        # filter multi-step queries
+        if multi_step:
+            print("Filtering multi-step queries")
+            multi_tool_queries = [qid for qid, apis in query2apis.items() if len(set(apis)) > 1]
+            multi_queries = set(multi_tool_queries)
+            id2query = {qid: query for qid, query in id2query.items() if qid in multi_queries}
+            query2apis = {qid: apis for qid, apis in query2apis.items() if qid in multi_queries}
+            api_data_with_query = {api_id: api_data[api_id] for api_id in set(chain(*query2apis.values()))}
         
         self.id2query = id2query
         self.query2apis = query2apis

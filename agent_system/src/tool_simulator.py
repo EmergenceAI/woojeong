@@ -1,5 +1,5 @@
 import json
-import time
+import os
 
 SIMULATOR_PROMPT = '''
     Imagine you are an API Server. Your role is to simulate API calls based on the API documentation provided in a JSON format. API documentation includes the API's name, description, and input parameters. There are two types of parameters: required and optional. Optional parameters are specified as "optional" in the "type" field.
@@ -19,6 +19,7 @@ SIMULATOR_PROMPT = '''
     Note that:
     - your response should be around 100 to 200 words, containing rich information given the api input parameters. Keep Your answer short and simple.
     - your response must be effective and have practical content.
+    - try to simulate the API call and return as helpful information as possible. Instead of saying "The API successfully executed and returned something", provide a more detailed response.
     - do not mention that this is a simulation in your response, assume that this is a real scenario and provide imaginary responses if the information required is not available
 '''
 
@@ -40,11 +41,11 @@ SIMULATOR_PROMPT = '''
 
 class APISimulator():
     """
-    Simulate API calls with gpt-4-0125-preview model
+    Simulate API calls with gpt model
     """
-    def __init__(self, api_data: dict, model_name: str = "gpt-4-0125-preview"):
+    def __init__(self, api_data: dict):
         self.api_data = api_data
-        self.model_name = model_name
+        self.model_name = os.getenv("SIMULATOR_MODEL_NAME")
         self.system_prompt = self.build_system_prompt(api_data)
 
     def build_system_prompt(self, api_data):
