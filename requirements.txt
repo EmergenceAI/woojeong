@@ -21,7 +21,7 @@ black==24.4.2
 blinker==1.8.2
 build==1.2.1
 cachetools==5.3.3
-certifi==2024.2.2
+certifi==2024.7.4
 cffi==1.16.0
 charset-normalizer==3.3.2
 chroma-hnswlib==0.7.6
