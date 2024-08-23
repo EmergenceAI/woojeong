@@ -11,7 +11,7 @@ from itertools import chain
 
 from agent_system.src.tool_datasets import ToolbenchDataset, APIGenDataset, MetaToolDataset
 from agent_system.src.prompts import EVALUATION_PROMPT
-from toolbench_analysis.src.api.utils import CustomThreadPoolExecutor, get_gpt_response_multithread
+from agent_system.src.openai_utils import CustomThreadPoolExecutor, get_gpt_response_multithread
 
 
 class AnswerStatus(Enum):
@@ -281,6 +281,7 @@ if __name__ == "__main__":
 
     # print eval dict stats
     print(f"Evaluation Results ======================")
+    print(f"Retrieved {len(eval_result_dict)} results")
     # retrieval
     retrieval_tp = sum([result["retrieval_tp"] for result in eval_result_dict.values()])
     retrieval_fn = sum([result["retrieval_fn"] for result in eval_result_dict.values()])

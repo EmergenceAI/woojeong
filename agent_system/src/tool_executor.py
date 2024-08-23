@@ -9,10 +9,9 @@ import json
 from dotenv import load_dotenv
 from tqdm import tqdm
 from enum import Enum
-from agent_system.src.utils import terminate
+from agent_system.src.utils import terminate, standardize
 from agent_system.src.prompts import LLM_PROMPTS
-from agent_system.src.utils import standardize
-from toolbench_analysis.src.utils import load_api_data, load_query_api_mapping, load_query_data
+from toolbench_analysis.src.load_toolbench_utils import load_api_data, load_query_api_mapping, load_query_data
 
 
 class APIStatus(Enum):

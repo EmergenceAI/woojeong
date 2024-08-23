@@ -5,7 +5,7 @@ import pandas as pd
 from io import StringIO
 from itertools import chain
 import json
-from toolbench_analysis.src.utils import load_query_api_mapping, load_api_data, load_query_data 
+from toolbench_analysis.src.load_toolbench_utils import load_query_api_mapping, load_api_data, load_query_data 
 from dataclasses import dataclass
 
 @dataclass

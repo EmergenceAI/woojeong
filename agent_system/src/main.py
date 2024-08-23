@@ -77,8 +77,8 @@ def run_agent_system(queries, tools, ds, tool_top_k, autogen_max_chat_round, sav
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--qid", type=int, default=80)
     parser.add_argument("--dataset", type=str, default="toolbench", choices=["toolbench", "apigen", "metatool"])
+    parser.add_argument("--multi_step", action="store_true")
     parser.add_argument("--tool_top_k", type=int, default=20)
     parser.add_argument("--autogen_max_chat_round", type=int, default=50)
     parser.add_argument("--result_dir", type=str, default="results")
@@ -91,9 +91,9 @@ if __name__ == "__main__":
     args = parse_args()
 
     if args.dataset == "toolbench":
-        ds = ToolbenchDataset()
+        ds = ToolbenchDataset(multi_step=args.multi_step)
     elif args.dataset == "apigen":
-        ds = APIGenDataset()
+        ds = APIGenDataset(multi_step=args.multi_step)
     elif args.dataset == "metatool":
         ds = MetaToolDataset()
     else:

@@ -1,3 +1,4 @@
+# Prompts from agent-e
 LLM_PROMPTS = {
     "USER_AGENT_PROMPT": """A proxy for the user for executing the user commands.""",
     "ORCHESTRATOR_PROMPT": """You are a helpful AI orchestrator. Given user query, call tool retriever with the exact query to select most relevant tools.
@@ -229,5 +230,29 @@ Answer:
 {answer}
 
 Now give your reason in "content" and `answer_status` of JSON.
+"""
+}
+
+# ReAct prompt from toolbench
+REACT_PROMPT = {
+    "TOOL_EXECUTION_MANAGER_PROMPT": """Answer the following questions as best you can. Specifically, you have access to the following APIs:
+
+{func_str}
+
+Use the following format:
+Thought: you should always think about what to do
+Action: the action to take, should be one of {func_list}
+Action Input: the input to the action
+End Action
+
+Begin! Remember: (1) Follow the format, i.e,
+Thought:
+Action:hb
+Action Input:
+End Action
+(2)The Action: MUST be one of the following: {func_list}
+Question: {question}
+
+Here are the history actions and observations:
 """
 }

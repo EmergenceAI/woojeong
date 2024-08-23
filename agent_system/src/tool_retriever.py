@@ -4,6 +4,7 @@ import faiss
 import pickle
 import numpy as np
 from typing import List
+from agent_system.src.retrieval.embed_apis import embed_texts
 
 
 class ToolRetriever:
@@ -14,7 +15,7 @@ class ToolRetriever:
         embedding_mode="openai",
         api_summary_mode="raw",
     ):
-        api_embedding_base_dir = os.getenv("GENERATED_DATA_DIR")
+        api_embedding_base_dir = os.getenv("EMBEDDING_BASE_DIR")
         embed_dir = os.path.join(api_embedding_base_dir, f"api_embeddings_{dataset}")
         try:
             query_embed = pickle.load(
@@ -65,10 +66,6 @@ class ToolRetriever:
     ) -> List[int]:
         if query_text != "":
             # embed query
-            from toolbench_analysis.src.api.embed_apis import embed_texts
-            from dotenv import load_dotenv
-
-            load_dotenv(".env")
             query = embed_texts(
                 {0: query_text},
                 self.embedding_mode,
