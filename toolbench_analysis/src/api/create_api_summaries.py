@@ -1,9 +1,12 @@
+"""
+Merged into ../agent_system/src/retrieval/embed_apis.py
+"""
 import json
 import os
 from dotenv import load_dotenv
 
-from toolbench_analysis.src.api.utils import get_gpt_response, read_api_data, store_api_data
-from toolbench_analysis.src.api.prompts import TOOL_SUMMARY_PROMPT
+from toolbench_analysis.src.utils import get_gpt_response, read_api_data, store_api_data
+from agent_system.src.retrieval.prompts import TOOL_SUMMARY_PROMPT
 
 def _create_summary_prompt(
     api_description

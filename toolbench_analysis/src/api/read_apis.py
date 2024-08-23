@@ -2,7 +2,7 @@ import os
 import json
 import logging
 from dotenv import load_dotenv
-from utils import store_api_data
+from toolbench_analysis.src.utils import store_api_data
 
 logging.basicConfig(
     level=logging.INFO,
