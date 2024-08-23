@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import pandas as pd
 
 logging.basicConfig(
     level=logging.INFO,
@@ -100,3 +101,69 @@ def precision_recall_at_k(df, K):
     mean_recall = sum(recall_list) / len(recall_list)
 
     return mean_precision, mean_recall
+
+
+def evaluate_retrieval(query2apis, id2api_embed, id2query_embed, apis, queries, k_list=[5, 10]):
+    """
+    Evaluate the retrieval performance of a query2apis mapping using embeddings.
+    
+    Args:
+        query2apis (dict): A mapping of query ids to lists of api ids.
+        id2api_embed (dict): A mapping of api ids to api embeddings.
+        id2query_embed (dict): A mapping of query ids to query embeddings.
+        apis (list): A list of all api ids.
+        queries (list): A list of all query ids.
+        k_list (list): A list of integers specifying the ranks to compute precision and recall at.
+        
+    Returns:
+        tuple: A tuple containing a dataframe of query-api pairs with ranks and a dictionary of evaluation metrics.
+    """
+    # filter mappings that are in queries
+    filtered_qd_mapping = {q: apis for q, apis in query2apis.items() if q in queries}
+    assert len(filtered_qd_mapping) == len(queries)
+
+    # convert to pandas dataframe and flatten
+    qd_mapping = pd.DataFrame(filtered_qd_mapping.items(), columns=['query', 'apis'])
+    qd_mapping = qd_mapping.explode('apis').rename(columns={'apis': 'api'}).reset_index(drop=True)
+    print(f"# of apis: {len(apis)}, # of queries: {len(queries)}, # of api calls: {len(qd_mapping)}")
+
+    # map row idx of embedding matrix -> actual id
+    idx2apiid = {i: doc_id for i, doc_id in enumerate(apis)}
+    idx2qid = {i: query_id for i, query_id in enumerate(queries)}
+    qid2idx = {qid: idx for idx, qid in idx2qid.items()}
+
+    # stack embeddings
+    api_embeds = np.stack([id2api_embed[id] for id in apis])
+    query_embeds = np.stack([id2query_embed[id] for id in queries])
+    assert len(idx2apiid) == api_embeds.shape[0]
+    assert len(idx2qid) == query_embeds.shape[0]
+
+    # compute top k documents per query
+    top_k_indices = get_top_k_similar(query_embeds, api_embeds, K=None)
+
+    # convert top_k_indices into top_k_apiids
+    convert_to_id = np.vectorize(lambda x: idx2apiid[x])
+    top_k_ids = convert_to_id(top_k_indices)
+
+    # add top_k_id column to qd_mapping_filtered df
+    # note that query idx should be converted to query id
+    ranks = []
+    for i, row in qd_mapping.iterrows():
+        qid, apiid = row["query"], row["api"]
+        qidx = qid2idx[qid]
+        ordered_apiids = top_k_ids[qidx]
+        assert apiid in ordered_apiids
+        # find the rank of the docid
+        rank = np.where(ordered_apiids == apiid)[0][0] + 1
+        ranks.append(rank)
+    qd_mapping["rank"] = ranks
+    # print("Ranking added to each query-api pair")
+    # print(qd_mapping_filtered.head())
+
+    # compute metrics (MRR, Precision@K, Recall@K)
+    qd_mapping = qd_mapping.rename(columns={"query": "qid"})
+    results = {}
+    results["MRR"] = mean_reciprocal_rank(qd_mapping)
+    for k in k_list:
+        results[f"Precision@{k}"], results[f"Recall@{k}"] = precision_recall_at_k(qd_mapping, k)
+    return qd_mapping, results

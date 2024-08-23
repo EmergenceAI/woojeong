@@ -4,9 +4,9 @@ import logging
 import tempfile
 import json
 import inspect
-from prompts import LLM_PROMPTS
 from dotenv import load_dotenv
 from agent_system.src.utils import terminate, convert_to_openai_tool_schema, convert_api_to_function
+from agent_system.src.prompts import LLM_PROMPTS
         
 
 class AutogenWrapper:

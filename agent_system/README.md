@@ -50,7 +50,8 @@ All dataset classes inherit from a base `Dataset` class, allowing them to be cal
   * **Options:**
     * `multi_step`: Filters multi-step/multi-tool queries. Default: `False`.
 
-## Embed API Documents
+## System execution instruction
+### 1. Embed API Documents
 
 Embed API documents into fixed-dimension vectors before running the AutoGen system:
 
@@ -67,7 +68,7 @@ python src/retrieval/embed_apis.py --dataset toolbench --summary_mode raw --embe
   * `toolbench-retriever`: Requires running the [Toolbench retriever](https://github.com/OpenBMB/ToolBench?tab=readme-ov-file#model) (a small sentence transformer model) locally. Suitable for GPU machines.
   * `openai`: Uses OpenAI embedding model to embed API documents. Specify `embedding_model` (default: `text-embedding-3-small`).
 
-## Run the Agent System
+### 2. Run the AutoGen System
 
 Load a specified dataset, retrieve the top 20 relevant tools, and run the AutoGen system with a maximum of 20 rounds. Results will be saved as JSON, e.g., `../results/apigen_api20.json`.
 
@@ -77,7 +78,22 @@ python src/main.py --dataset toolbench --multi_step --tool_top_k 20 --autogen_ma
 
 * This script is currently verified with `apigen` and `toolbench`, but further verification is needed for other datasets.
 
-## Evaluation
+### 2. Run the AutoGen System with Bootstrapping
+
+To iteratively run the system while expanding the API pool, bootstrapping is used. The code below will sample APIs and queries from the entire pool and run the system with the selected samples. You need to configure `n_api_list` and `n_repeat_list` as shown in the following example:
+
+```python
+n_api_list = [10, 50, 100, 200, 500, 1000, 2000, 5000, len(unique_apis)]
+n_repeat_list = [3] * len(n_api_list) 
+```
+
+Since this process involves repeated system runs, the runtime can be very slow. Consider running it in parallel or applying optimizations.
+
+```bash
+python src/bootstrap.py --dataset toolbench --multi_step --tool_top_k 20 --autogen_max_chat_round 20 --result_dir results --seed 42
+```
+
+### 3. Evaluation
 
 Evaluate the results of the agent system. Ensure that the agent system has been run and that the results are saved in the `results` directory for correct loading.
 
