@@ -1,7 +1,9 @@
-toolbench_analysis/data/
-toolbench_analysis/retrieval_results/
+toolbench_analysis/data_backup/*
+toolbench_analysis/data/*
+toolbench_analysis/retrieval_results_backup/*
 agent_system/results/*
-assets/*
+agent_system/retrieval_data/*
+playground/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
