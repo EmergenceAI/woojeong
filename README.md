@@ -1,10 +1,8 @@
 # Woojeong's workspace
-## toolbench_analysis
-* explore and preprocess toolbench dataset
-
-## agent_system
+* Please refer to each subdirectory's readme
 ## setup
 ```python
+pip install -r requirements.txt
 pip install -Ue .
 ```
 

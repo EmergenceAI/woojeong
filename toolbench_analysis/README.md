@@ -3,7 +3,10 @@
 This directory contains scripts and instructions for preprocessing and analyzing the Toolbench dataset.
 
 ## Setup
-To ensure smooth execution, make sure to load environment variables correctly. If the code fails to do so, place a `.env` file in the working directory.
+* To ensure smooth execution, make sure to load environment variables correctly. If the code fails to do so, place a `.env` file in the working directory.
+* Prepare Toolbench dataset
+  * clone https://github.com/OpenBMB/ToolBench/tree/master and download data under data/ folder
+  * Set the `TOOLBENCH_DIR` environment variable (e.g., `"/Users/woojeong/Desktop/ToolBench/data"`).
 
 ## API Data Preprocessing
 
