@@ -1,6 +1,8 @@
 # Woojeong's Workspace
-* Please refer to each subdirectory's readme
-* Figures in slides can be found in `assets` directory
+* Refer to the README file in each subdirectory for specific instructions.
+* Figures used in the slides are located in the `assets` directory.
+* The `resources.md` file contains useful resources, including related works, code, data, articles, and AutoGen guides.
+
 ## Setup
 ```python
 pip install -r requirements.txt
