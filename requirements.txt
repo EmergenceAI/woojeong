@@ -103,7 +103,7 @@ keyring==25.2.1
 kiwisolver==1.4.5
 kubernetes==30.1.0
 linkify-it-py==2.0.3
-litellm==1.40.9
+litellm==1.44.8
 lxml==5.2.2
 Markdown==3.6
 markdown-it-py==2.2.0
