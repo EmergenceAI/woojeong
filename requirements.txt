@@ -36,7 +36,7 @@ dataclasses-json==0.5.14
 datasets==2.20.0
 debugpy @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_563_nwtkoc/croot/debugpy_1690905063850/work
 decorator @ file:///home/conda/feedstock_root/build_artifacts/decorator_1641555617451/work
-deepspeed==0.14.3
+deepspeed==0.15.1
 Deprecated==1.2.14
 dill==0.3.8
 diskcache==5.6.3
