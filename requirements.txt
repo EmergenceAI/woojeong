@@ -250,7 +250,7 @@ wcwidth @ file:///home/conda/feedstock_root/build_artifacts/wcwidth_170473120541
 webencodings==0.5.1
 websocket-client==1.8.0
 websockets==12.0
-Werkzeug==3.0.3
+Werkzeug==3.0.6
 -e git+https://github.com/XioResearchInterGalactic/woojeong.git@c46fd1f1aee15919ad61b31cce85d4fddf041c8e#egg=woojeong
 wrapt==1.16.0
 xxhash==3.4.1
